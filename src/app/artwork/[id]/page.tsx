@@ -10,6 +10,12 @@ import { ShareButton } from '@/components/ui/ShareButton';
 
 export const revalidate = 60;
 
+// Required by the static export: there is no server to render unknown ids.
+export async function generateStaticParams() {
+  const { FIXTURE_ARTWORKS } = await import('@/lib/artworks/fixtures');
+  return FIXTURE_ARTWORKS.map((a) => ({ id: a.id }));
+}
+
 type Params = { params: { id: string } };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {

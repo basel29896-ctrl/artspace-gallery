@@ -4,7 +4,14 @@ A subscription platform for artists to show and sell original work — where the
 navigable 3D gallery room, and buyers can preview a piece on their own wall in true perspective before
 they ever contact the artist.
 
-**[Read the concept →](https://basel29896-ctrl.github.io/artspace-gallery/)**
+**[Open the live demo →](https://basel29896-ctrl.github.io/artspace-gallery/)**
+&nbsp;·&nbsp;
+[Read the concept](https://basel29896-ctrl.github.io/artspace-gallery/concept/)
+
+The demo is a **static export** hosted on GitHub Pages. The 3D room, artist profiles, artwork pages and
+the full "View in Your Space" perspective editor all run for real — they are client-side. Anything needing
+a server is absent by construction: no sign-in, no uploads, no inquiries, no analytics. Build it yourself
+with `npm run build:demo`.
 
 ---
 

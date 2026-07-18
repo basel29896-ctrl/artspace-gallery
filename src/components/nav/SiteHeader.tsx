@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { IS_STATIC_DEMO } from '@/lib/demo';
 import { NavBar, type NavUser } from './NavBar';
 
 /**
@@ -8,6 +9,10 @@ import { NavBar, type NavUser } from './NavBar';
  */
 export async function SiteHeader() {
   let user: NavUser = null;
+
+  // The static export has no request context; reading cookies here would make
+  // the whole layout dynamic and break `output: 'export'`.
+  if (IS_STATIC_DEMO) return <NavBar user={null} />;
 
   try {
     const supabase = createClient();

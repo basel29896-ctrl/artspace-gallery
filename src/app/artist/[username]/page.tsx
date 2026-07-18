@@ -6,6 +6,11 @@ import { ShareButton } from '@/components/ui/ShareButton';
 
 export const revalidate = 120;
 
+export async function generateStaticParams() {
+  const { fixtureArtistList } = await import('@/lib/artworks/fixtures');
+  return fixtureArtistList().map((a) => ({ username: a.username as string }));
+}
+
 type Params = { params: { username: string } };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {

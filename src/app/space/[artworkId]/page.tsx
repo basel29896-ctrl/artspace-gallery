@@ -6,6 +6,11 @@ import { SpaceWorkspace } from '@/components/space/SpaceWorkspace';
 
 export const revalidate = 120;
 
+export async function generateStaticParams() {
+  const { FIXTURE_ARTWORKS } = await import('@/lib/artworks/fixtures');
+  return FIXTURE_ARTWORKS.map((a) => ({ artworkId: a.id }));
+}
+
 type Params = { params: { artworkId: string } };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { IS_STATIC_DEMO } from '@/lib/demo';
 
 type Props = { artworkId: string; initialCount: number };
 
@@ -23,6 +24,7 @@ export function LikeButton({ artworkId, initialCount }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (IS_STATIC_DEMO) return;
     let active = true;
 
     async function load() {
@@ -123,21 +125,25 @@ export function LikeButton({ artworkId, initialCount }: Props) {
                      bg-[#faf7f2] p-3 shadow-lg"
         >
           <p className="text-sm leading-snug text-stone-700">
-            Sign in to save work you love.
+            {IS_STATIC_DEMO
+              ? 'This is a static preview — accounts are disabled here.'
+              : 'Sign in to save work you love.'}
           </p>
           <div className="mt-3 flex gap-2">
+            {IS_STATIC_DEMO ? null : (
             <Link
               href={`/login?next=${encodeURIComponent(pathname)}`}
               className="rounded-sm bg-stone-900 px-3 py-1.5 text-xs text-stone-50 transition hover:bg-stone-700"
             >
               Sign in
             </Link>
+            )}
             <button
               type="button"
               onClick={() => setPromptSignIn(false)}
               className="rounded-sm border border-stone-300 px-3 py-1.5 text-xs text-stone-600 transition hover:border-stone-800"
             >
-              Not now
+              {IS_STATIC_DEMO ? 'Close' : 'Not now'}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import type { GalleryArtwork, SpaceArtwork, ArtistProfile } from './queries';
+import { IS_STATIC_DEMO, BASE_PATH } from '@/lib/demo';
 
 /**
  * Local sample data for verifying the UI without a Supabase project.
@@ -8,6 +9,10 @@ import type { GalleryArtwork, SpaceArtwork, ArtistProfile } from './queries';
  * path a real user can reach.
  */
 export function fixturesEnabled() {
+  // The static demo has no backend, so fixtures are its only possible data
+  // source and must work in a production build. Every other environment keeps
+  // the original guard: dev-only, behind an explicit flag.
+  if (IS_STATIC_DEMO) return true;
   return process.env.NEXT_PUBLIC_USE_FIXTURES === '1' && process.env.NODE_ENV !== 'production';
 }
 
@@ -123,7 +128,7 @@ function toGalleryArtwork(seed: Seed): GalleryArtwork {
     medium: seed.medium,
     year: seed.year,
     likes_count: seed.likes,
-    displayUrl: `/fixtures/${seed.id}.webp`,
+    displayUrl: `${BASE_PATH}/fixtures/${seed.id}.webp`,
     artist: { id: artist.id, name: artist.name, username: artist.username },
   };
 }
@@ -159,7 +164,7 @@ export function fixtureSpaceArtworks(id: string): SpaceArtwork[] {
   return [seed, ...siblings].map((s) => ({
     id: s.id,
     title: s.title,
-    displayUrl: `/fixtures/${s.id}.webp`,
+    displayUrl: `${BASE_PATH}/fixtures/${s.id}.webp`,
     artistName: artist.name,
   }));
 }
@@ -176,7 +181,7 @@ export function fixtureArtistList() {
       bio: artist.bio,
       avatar_url: artist.avatar_url,
       artworkCount: works.length,
-      coverUrl: works[0] ? `/fixtures/${works[0].id}.webp` : null,
+      coverUrl: works[0] ? `${BASE_PATH}/fixtures/${works[0].id}.webp` : null,
     };
   }).sort((a, b) => b.artworkCount - a.artworkCount);
 }

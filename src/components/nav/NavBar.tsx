@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { IS_STATIC_DEMO } from '@/lib/demo';
 
 export type NavUser = {
   role: 'artist' | 'visitor';
@@ -85,7 +86,14 @@ export function NavBar({ user }: { user: NavUser }) {
         </div>
 
         <div className="hidden items-center gap-3 sm:flex">
-          {user ? (
+          {IS_STATIC_DEMO ? (
+            <a
+              href="https://github.com/basel29896-ctrl/artspace-gallery"
+              className="rounded-sm border border-stone-300 px-4 py-1.5 text-sm text-stone-700 transition hover:border-stone-800"
+            >
+              Source
+            </a>
+          ) : user ? (
             <>
               {user.role === 'artist' ? (
                 <Link
@@ -147,7 +155,16 @@ export function NavBar({ user }: { user: NavUser }) {
                 </Link>
               </li>
             ))}
-            {user ? (
+            {IS_STATIC_DEMO ? (
+              <li>
+                <a
+                  href="https://github.com/basel29896-ctrl/artspace-gallery"
+                  className="block text-sm text-stone-800"
+                >
+                  Source
+                </a>
+              </li>
+            ) : user ? (
               <>
                 {user.role === 'artist' ? (
                   <li>

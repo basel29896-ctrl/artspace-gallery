@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { IS_STATIC_DEMO } from '@/lib/demo';
 
 type Props = { artworkId: string; artistName: string };
 
@@ -26,6 +27,17 @@ export function ContactArtistDialog({ artworkId, artistName }: Props) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+
+    if (IS_STATIC_DEMO) {
+      // No API route exists in the static build. Be explicit rather than
+      // letting the request 404 and look broken.
+      setStatus({
+        kind: 'error',
+        message: 'This is a static preview — messages are not delivered here.',
+      });
+      return;
+    }
+
     setStatus({ kind: 'sending' });
 
     const res = await fetch('/api/inquiries', {

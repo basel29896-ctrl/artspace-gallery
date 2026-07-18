@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { IS_STATIC_DEMO } from '@/lib/demo';
 
 export function SiteFooter() {
   return (
@@ -18,9 +19,18 @@ export function SiteFooter() {
           <Link href="/artists" className="transition hover:text-stone-900">
             Artists
           </Link>
-          <Link href="/login?mode=signup" className="transition hover:text-stone-900">
-            Sell your work
-          </Link>
+          {IS_STATIC_DEMO ? (
+            <a
+              href="https://github.com/basel29896-ctrl/artspace-gallery"
+              className="transition hover:text-stone-900"
+            >
+              Source on GitHub
+            </a>
+          ) : (
+            <Link href="/login?mode=signup" className="transition hover:text-stone-900">
+              Sell your work
+            </Link>
+          )}
         </nav>
       </div>
     </footer>
