@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ArtSpace Gallery
 
-## Getting Started
+A subscription platform for artists to show and sell original work — where the collection hangs in a
+navigable 3D gallery room, and buyers can preview a piece on their own wall in true perspective before
+they ever contact the artist.
 
-First, run the development server:
+**[Read the concept →](https://basel29896-ctrl.github.io/artspace-gallery/)**
+
+---
+
+## Status
+
+Working prototype. Not a shipped product.
+
+| Area | State |
+| --- | --- |
+| 3D gallery room (scroll-driven camera, per-artwork spotlights, click-to-focus) | Built, verified in browser |
+| "View in Your Space" perspective editor | Built, warp verified to 1.15e-13 px vertex error |
+| Server-side watermark pipeline (sharp) | Built, verified end-to-end |
+| Database schema + row-level security | Written, **not yet run against a live project** |
+| Auth (email/password + Google), profiles, artist studio | Built; OAuth untested without a live Supabase project |
+| Artist dashboard — upload, edit, inquiries, analytics | Built |
+| Stripe subscriptions | **Not implemented** |
+| Automated test suite | **None.** Verification so far is targeted scripts + browser runs |
+
+Everything data-backed currently runs on fixture data. Connect a Supabase project to exercise the real paths.
+
+## Running it
 
 ```bash
+npm install
+cp .env.example .env.local     # fill in Supabase + Stripe keys
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To browse the interface without a database, add `NEXT_PUBLIC_USE_FIXTURES=1` to `.env.local`. The fixture
+path is gated on that flag **and** on `NODE_ENV !== 'production'`, so it cannot serve in a production build.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Two migrations in `supabase/migrations/`, applied in order:
 
-## Learn More
+- `0001_init.sql` — schema, enums, RLS policies, storage buckets, likes-count trigger
+- `0002_views_and_rpcs.sql` — view analytics, inquiry intake, artist stats
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Originals are never served.** On upload, `sharp` produces a watermarked rendition capped at 1600px with
+EXIF stripped. The original goes to a private bucket with no client-reachable URL; only the rendition is
+public. Canvas rendering and a disabled context menu add friction on top, but they are deterrence, not
+protection — they do not stop a screenshot, and the code says so.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Perspective is a real homography.** Konva's transforms are affine, so independent corner dragging is
+impossible with them — an affine matrix can only ever produce a parallelogram. The warp solves the
+projective transform from the four corners and renders 512 subdivided triangles, each with its own affine
+approximation.
 
-## Deploy on Vercel
+**Privileged columns are trigger-protected.** `users.role` and `users.plan` cannot be written by a user's
+own session, so nobody can promote themselves to a paid plan by updating their own row.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**The room photo never leaves the browser.** It lives in an object URL, revoked on unmount.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Known gaps
+
+- No Stripe integration.
+- No automated tests.
+- Rate limiting is in-memory and therefore per-instance — near useless on serverless. Needs Redis before launch.
+- No password reset flow.
+- Google OAuth and email confirmation are unverified end-to-end.
+
+## Images
+
+See [NOTICE.md](NOTICE.md) — the sample images in this repository are third-party stock photographs and
+are **not** covered by this project's licence.

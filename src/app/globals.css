@@ -2,22 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Editorial gallery-white. The room is the only place colour lives, so the
+ * chrome stays warm-neutral and gets out of the way. No dark mode: a gallery
+ * that inverts its walls is a different room, not a themed one.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #f7f4ee;
+  --foreground: #1c1917;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The orbiting camera and the panel slide are both motion the media query targets. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer utilities {
