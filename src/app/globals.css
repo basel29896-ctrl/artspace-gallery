@@ -28,18 +28,6 @@ body {
   }
 }
 
-/* Side placard slides in from the wall edge rather than up from the bottom. */
-@keyframes placard-in {
-  from {
-    opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
 /* The orbiting camera and the panel slide are both motion the media query targets. */
 @media (prefers-reduced-motion: reduce) {
   *,
