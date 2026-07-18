@@ -33,10 +33,12 @@ export function ArtworkPanel({ artwork, onClose }: Props) {
       role="dialog"
       aria-modal="false"
       aria-labelledby="artwork-panel-title"
-      className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-xl
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 flex w-full flex-col
                  animate-[panel-in_320ms_cubic-bezier(0.16,1,0.3,1)] border-t border-stone-300/70
                  bg-[#faf7f2]/95 p-6 shadow-[0_-8px_40px_rgba(40,30,20,0.18)] backdrop-blur-md
-                 sm:bottom-8 sm:rounded-lg sm:border sm:p-8"
+                 sm:inset-x-auto sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[22rem]
+                 sm:animate-[placard-in_360ms_cubic-bezier(0.16,1,0.3,1)] sm:justify-center
+                 sm:border-l sm:border-t-0 sm:p-8 sm:shadow-[-8px_0_40px_rgba(40,30,20,0.18)]"
     >
       <button
         ref={closeRef}
@@ -73,7 +75,7 @@ export function ArtworkPanel({ artwork, onClose }: Props) {
       </p>
 
       {artwork.description ? (
-        <p className="mt-4 max-h-32 overflow-y-auto text-sm leading-relaxed text-stone-700">
+        <p className="mt-4 max-h-32 overflow-y-auto text-sm sm:max-h-64 leading-relaxed text-stone-700">
           {artwork.description}
         </p>
       ) : null}
