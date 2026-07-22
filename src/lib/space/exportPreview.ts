@@ -63,18 +63,22 @@ export function stampExportWatermark(
  * triangle seams visible. Here the room is drawn at its native resolution and
  * the artwork is re-warped at that scale.
  */
+/** One placement to bake into the export, listed in z-order (back to front). */
+export type ExportPlacement = { framedArtwork: HTMLCanvasElement; quad: Quad };
+
 export function renderExportComposite(options: {
   room: HTMLImageElement;
-  framedArtwork: HTMLCanvasElement;
-  quad: Quad;
+  placements: ExportPlacement[];
   /** Stage dimensions the quad coordinates are expressed in. */
   stageWidth: number;
   stageHeight: number;
   shadow: boolean;
   maxWidth?: number;
 }): HTMLCanvasElement | null {
-  const { room, framedArtwork, quad, stageWidth, stageHeight, shadow } = options;
+  const { room, placements, stageWidth, stageHeight, shadow } = options;
   const maxWidth = options.maxWidth ?? 2400;
+
+  if (placements.length === 0) return null;
 
   const width = Math.min(room.naturalWidth || stageWidth, maxWidth);
   const scale = width / stageWidth;
@@ -90,33 +94,34 @@ export function renderExportComposite(options: {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(room, 0, 0, canvas.width, canvas.height);
 
-  const scaled = quad.map((p) => ({ x: p.x * scale, y: p.y * scale })) as Quad;
+  let anyDrawn = false;
 
-  if (shadow) {
-    ctx.save();
-    ctx.globalAlpha = 0.42;
-    ctx.filter = `blur(${Math.round(14 * scale)}px)`;
-    ctx.fillStyle = 'rgba(20,15,10,1)';
-    ctx.beginPath();
-    ctx.moveTo(scaled[0].x + 10 * scale, scaled[0].y + 14 * scale);
-    for (let i = 1; i < 4; i += 1) {
-      ctx.lineTo(scaled[i].x + 10 * scale, scaled[i].y + 14 * scale);
+  // Back-to-front: each piece's shadow sits under its own artwork but over
+  // whatever was drawn beneath it — the same order Konva stacks the layers.
+  for (const { framedArtwork, quad } of placements) {
+    const scaled = quad.map((p) => ({ x: p.x * scale, y: p.y * scale })) as Quad;
+
+    if (shadow) {
+      ctx.save();
+      ctx.globalAlpha = 0.42;
+      ctx.filter = `blur(${Math.round(14 * scale)}px)`;
+      ctx.fillStyle = 'rgba(20,15,10,1)';
+      ctx.beginPath();
+      ctx.moveTo(scaled[0].x + 10 * scale, scaled[0].y + 14 * scale);
+      for (let i = 1; i < 4; i += 1) {
+        ctx.lineTo(scaled[i].x + 10 * scale, scaled[i].y + 14 * scale);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+
+    if (drawPerspective(ctx, framedArtwork, framedArtwork.width, framedArtwork.height, scaled)) {
+      anyDrawn = true;
+    }
   }
 
-  const drawn = drawPerspective(
-    ctx,
-    framedArtwork,
-    framedArtwork.width,
-    framedArtwork.height,
-    scaled,
-  );
-  if (!drawn) return null;
-
-  return canvas;
+  return anyDrawn ? canvas : null;
 }
 
 export function downloadCanvasAsJpeg(canvas: HTMLCanvasElement, filename: string) {

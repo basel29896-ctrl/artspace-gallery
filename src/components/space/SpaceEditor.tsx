@@ -11,8 +11,10 @@ import {
   resizeQuadToWidthCm,
   type Calibration,
 } from '@/lib/space/calibration';
+import { snapPlacement } from '@/lib/space/alignment';
 import type { FrameStyle, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
-import { useArtworkComposite, useImage } from './useArtworkComposite';
+import { useImage } from './useArtworkComposite';
+import { PlacementImage, type PlacementComposite } from './PlacementImage';
 import {
   stampExportWatermark,
   downloadCanvasAsJpeg,
@@ -23,12 +25,25 @@ import { SpaceControls } from './SpaceControls';
 
 const HANDLE_RADIUS = 9;
 
-function initialQuad(stageWidth: number, stageHeight: number, aspect: number): Quad {
-  const width = stageWidth * 0.34;
-  const height = width / aspect;
-  const cx = stageWidth / 2;
-  const cy = stageHeight / 2;
+export type Placement = {
+  id: string;
+  artworkId: string;
+  quad: Quad;
+  frame: FrameStyle;
+  mat: MatSettings;
+  variantIndex: number;
+};
 
+let placementSeq = 0;
+const nextPlacementId = () => `pl-${Date.now().toString(36)}-${(placementSeq += 1)}`;
+
+/** A centred quad, nudged by `index` so a new piece never lands exactly on another. */
+function seedQuad(stageWidth: number, stageHeight: number, aspect: number, index: number): Quad {
+  const width = stageWidth * 0.3;
+  const height = width / aspect;
+  const shift = index * Math.min(stageWidth, stageHeight) * 0.06;
+  const cx = stageWidth / 2 + shift;
+  const cy = stageHeight / 2 + shift;
   return [
     { x: cx - width / 2, y: cy - height / 2 },
     { x: cx + width / 2, y: cy - height / 2 },
@@ -49,182 +64,203 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
   const stageRef = useRef<Konva.Stage>(null);
 
   const [stageSize, setStageSize] = useState({ width: 900, height: 600 });
-  const [activeId, setActiveId] = useState(initialArtworkId);
-  const [frame, setFrame] = useState<FrameStyle>('none');
-  const [mat, setMat] = useState<MatSettings>({ width: 0, color: 'white' });
+  const [placements, setPlacements] = useState<Placement[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [guides, setGuides] = useState<number[][]>([]);
+
   const [realism, setRealism] = useState<RealismSettings>({
     brightness: 1,
     warmth: 0,
     shadow: true,
   });
-  const [quad, setQuad] = useState<Quad | null>(null);
 
-  // True-to-scale placement.
+  // True-to-scale placement (shared across all pieces).
   const [calibration, setCalibration] = useState<Calibration | null>(null);
   const [calibrating, setCalibrating] = useState(false);
   const [refSeg, setRefSeg] = useState<[Point, Point] | null>(null);
   const [refCm, setRefCm] = useState('');
   const [trueSize, setTrueSize] = useState(false);
-  const [variantIndex, setVariantIndex] = useState(0);
 
-  const active = artworks.find((a) => a.id === activeId) ?? artworks[0];
-  const sizes = useMemo(() => active?.sizeVariants ?? [], [active]);
-  const targetWidthCm = sizes[variantIndex]?.widthCm ?? active?.widthCm ?? null;
+  const artworkById = useCallback(
+    (id: string) => artworks.find((a) => a.id === id),
+    [artworks],
+  );
+
+  const selected = placements.find((p) => p.id === selectedId) ?? null;
+  const selectedArtwork = selected ? artworkById(selected.artworkId) : undefined;
+  const selectedSizes = selectedArtwork?.sizeVariants ?? [];
 
   const { image: roomImage } = useImage(roomImageUrl);
-  // Supabase storage sends permissive CORS; without this the export canvas
-  // would be tainted and toBlob() would throw a SecurityError.
-  const { image: artworkImage } = useImage(active?.displayUrl ?? null, 'anonymous');
+
+  // Framed bitmaps + image dims reported up by each placement layer, keyed by
+  // placement id. A ref, not state: the export reads it on demand and it must
+  // not trigger re-renders as pieces re-compose.
+  const compositeRef = useRef<Map<string, PlacementComposite>>(new Map());
+  const onComposite = useCallback((id: string, composite: PlacementComposite | null) => {
+    if (composite) compositeRef.current.set(id, composite);
+    else compositeRef.current.delete(id);
+  }, []);
 
   // Fit the stage to the room photo's aspect within the available width.
   useEffect(() => {
     if (!roomImage) return;
-
     const measure = () => {
       const width = containerRef.current?.clientWidth ?? 900;
       const height = width / (roomImage.width / roomImage.height);
       setStageSize({ width: Math.round(width), height: Math.round(height) });
     };
-
     measure();
     const observer = new ResizeObserver(measure);
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [roomImage]);
 
-  // Seed the quad once the stage and artwork are both known.
+  const targetWidthFor = useCallback(
+    (placement: Placement): number | null => {
+      const artwork = artworkById(placement.artworkId);
+      if (!artwork) return null;
+      return artwork.sizeVariants[placement.variantIndex]?.widthCm ?? artwork.widthCm ?? null;
+    },
+    [artworkById],
+  );
+
+  const addArtwork = useCallback(
+    (artworkId: string) => {
+      const artwork = artworkById(artworkId);
+      if (!artwork || !roomImage) return;
+      // Prefer the listed physical aspect (known before the image decodes);
+      // fall back to an already-loaded piece, then a neutral 4:3.
+      const img = compositeRef.current.get(placements[0]?.id ?? '');
+      const aspect =
+        artwork.widthCm && artwork.heightCm
+          ? artwork.widthCm / artwork.heightCm
+          : img
+            ? img.imageWidth / img.imageHeight
+            : 4 / 3;
+      const baseIdx =
+        artwork.sizeVariants.findIndex((s) => s.widthCm === artwork.widthCm);
+      const variantIndex =
+        baseIdx >= 0 ? baseIdx : Math.floor(artwork.sizeVariants.length / 2);
+
+      let quad = seedQuad(stageSize.width, stageSize.height, aspect, placements.length);
+      const width = artwork.sizeVariants[variantIndex]?.widthCm ?? artwork.widthCm ?? null;
+      if (trueSize && calibration && width) quad = resizeQuadToWidthCm(quad, width, calibration);
+
+      const placement: Placement = {
+        id: nextPlacementId(),
+        artworkId,
+        quad,
+        frame: 'none',
+        mat: { width: 0, color: 'white' },
+        variantIndex: Math.max(variantIndex, 0),
+      };
+      setPlacements((ps) => [...ps, placement]);
+      setSelectedId(placement.id);
+    },
+    [artworkById, roomImage, placements, stageSize, trueSize, calibration],
+  );
+
+  // Seed the first placement once the room is ready.
   useEffect(() => {
-    if (quad || !artworkImage || !roomImage) return;
-    setQuad(initialQuad(stageSize.width, stageSize.height, artworkImage.width / artworkImage.height));
-  }, [quad, artworkImage, roomImage, stageSize]);
+    if (placements.length > 0 || !roomImage) return;
+    addArtwork(initialArtworkId);
+  }, [placements.length, roomImage, initialArtworkId, addArtwork]);
 
-  const safeQuad = quad ?? initialQuad(stageSize.width, stageSize.height, 1);
+  const updateQuad = useCallback((id: string, quad: Quad) => {
+    setPlacements((ps) => ps.map((p) => (p.id === id ? { ...p, quad } : p)));
+  }, []);
 
-  const { compositeCanvas, framed, version, quadValid } = useArtworkComposite({
-    artwork: artworkImage,
-    quad: safeQuad,
-    frame,
-    mat,
-    realism,
-    stageWidth: stageSize.width,
-    stageHeight: stageSize.height,
-  });
+  const patchSelected = useCallback(
+    (patch: Partial<Placement>) => {
+      if (!selectedId) return;
+      setPlacements((ps) => ps.map((p) => (p.id === selectedId ? { ...p, ...patch } : p)));
+    },
+    [selectedId],
+  );
 
-  const moveCorner = useCallback(
-    (index: number, next: Point) => {
-      setQuad((current) => {
-        if (!current) return current;
-        const candidate = current.map((p, i) => (i === index ? next : p)) as Quad;
-        // Reject drags that would fold the quad — rendering a bow-tie produces
-        // garbage, and it is not obvious to the user how to undo it.
-        if (!isConvexQuad(candidate) || minEdgeLength(candidate) < 12) return current;
-        return candidate;
+  // -------------------------------------------------------------- placement ops
+
+  const deletePlacement = useCallback((id: string) => {
+    compositeRef.current.delete(id);
+    setPlacements((ps) => ps.filter((p) => p.id !== id));
+    setSelectedId((cur) => (cur === id ? null : cur));
+  }, []);
+
+  const duplicatePlacement = useCallback(
+    (id: string) => {
+      setPlacements((ps) => {
+        const src = ps.find((p) => p.id === id);
+        if (!src) return ps;
+        const copy: Placement = {
+          ...src,
+          id: nextPlacementId(),
+          quad: src.quad.map((pt) => ({ x: pt.x + 28, y: pt.y + 28 })) as Quad,
+        };
+        return [...ps, copy];
       });
     },
     [],
   );
 
-  const moveWhole = useCallback(
-    (dx: number, dy: number) => {
-      setQuad((current) => {
-        if (!current) return current;
-        const moved = current.map((p) => ({ x: p.x + dx, y: p.y + dy })) as Quad;
-        // Keep the centre on the photo; without this the artwork can be dragged
-        // entirely off-stage and become unrecoverable.
-        const c = quadCentroid(moved);
-        if (
-          c.x < 0 ||
-          c.y < 0 ||
-          c.x > stageSize.width ||
-          c.y > stageSize.height
-        ) {
-          return current;
-        }
-        return moved;
-      });
-    },
-    [stageSize.width, stageSize.height],
-  );
-
-  // Whole-piece dragging is handled directly rather than with Konva's
-  // `draggable`. A draggable node whose points are derived from the quad would
-  // move twice per pointer delta — once from Konva's own offset, once from the
-  // quad update — and drift away from the cursor.
-  const movePointer = useRef<{ x: number; y: number } | null>(null);
-
-  // Cursor is set imperatively rather than through state: pointermove fires
-  // continuously, and a setState per move would re-render the whole editor on
-  // top of the quad update it already causes.
-  const setCursor = useCallback((value: string) => {
-    const el = containerRef.current;
-    if (el && el.style.cursor !== value) el.style.cursor = value;
+  const reorder = useCallback((id: string, dir: 1 | -1) => {
+    setPlacements((ps) => {
+      const i = ps.findIndex((p) => p.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= ps.length) return ps;
+      const next = [...ps];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
   }, []);
 
-  const handleStageDown = useCallback(
-    (e: KonvaEventObject<PointerEvent>) => {
-      // While calibrating, the canvas belongs to the reference handles.
-      if (calibrating) return;
-      // A corner handle owns its own drag; do not start a move as well.
-      if (e.target.getClassName?.() === 'Circle') return;
-      const pos = e.target.getStage()?.getPointerPosition();
-      if (!pos || !pointInQuad(safeQuad, pos)) return;
-      movePointer.current = pos;
-      setCursor('grabbing');
+  // -------------------------------------------------------------- true size
+
+  const relockAll = useCallback(
+    (cal: Calibration) => {
+      setPlacements((ps) =>
+        ps.map((p) => {
+          const width = targetWidthFor(p);
+          return width ? { ...p, quad: resizeQuadToWidthCm(p.quad, width, cal) } : p;
+        }),
+      );
     },
-    [safeQuad, setCursor, calibrating],
+    [targetWidthFor],
   );
 
-  const handleStageMove = useCallback(
-    (e: KonvaEventObject<PointerEvent>) => {
-      const pos = e.target.getStage()?.getPointerPosition();
-      if (!pos) return;
-
-      if (!movePointer.current) {
-        setCursor(pointInQuad(safeQuad, pos) ? 'grab' : 'default');
-        return;
-      }
-
-      moveWhole(pos.x - movePointer.current.x, pos.y - movePointer.current.y);
-      movePointer.current = pos;
+  const handleTrueSizeChange = useCallback(
+    (next: boolean) => {
+      setTrueSize(next);
+      if (next && calibration) relockAll(calibration);
     },
-    [safeQuad, moveWhole, setCursor],
+    [calibration, relockAll],
   );
 
-  const handleStageUp = useCallback(() => {
-    movePointer.current = null;
-    setCursor('default');
-  }, [setCursor]);
-
-  // On artwork switch, reset the chosen size to that piece's base (the variant
-  // matching its listed width, else the middle option).
-  useEffect(() => {
-    if (sizes.length === 0) {
-      setVariantIndex(0);
-      return;
-    }
-    const baseIdx = sizes.findIndex((s) => s.widthCm === active?.widthCm);
-    setVariantIndex(baseIdx >= 0 ? baseIdx : Math.floor(sizes.length / 2));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- key on artwork identity only
-  }, [activeId]);
-
-  // Rescale the quad so the artwork sits at `targetWidthCm` on the wall, keeping
-  // its centre and perspective. No-op without a calibration.
-  const applyTrueSize = useCallback(
-    (widthCm: number | null) => {
-      if (!calibration || !widthCm) return;
-      setQuad((cur) => (cur ? resizeQuadToWidthCm(cur, widthCm, calibration) : cur));
+  const handleSelectVariant = useCallback(
+    (index: number) => {
+      if (!selectedId) return;
+      setPlacements((ps) =>
+        ps.map((p) => {
+          if (p.id !== selectedId) return p;
+          const artwork = artworkById(p.artworkId);
+          const width = artwork?.sizeVariants[index]?.widthCm ?? null;
+          const quad =
+            trueSize && calibration && width
+              ? resizeQuadToWidthCm(p.quad, width, calibration)
+              : p.quad;
+          return { ...p, variantIndex: index, quad };
+        }),
+      );
     },
-    [calibration],
+    [selectedId, artworkById, trueSize, calibration],
   );
+
+  // -------------------------------------------------------------- calibration
 
   const startCalibration = useCallback(() => {
-    // Seed a horizontal reference across the middle third of the photo.
     const y = stageSize.height * 0.62;
-    const x0 = stageSize.width * 0.34;
-    const x1 = stageSize.width * 0.66;
     setRefSeg([
-      { x: x0, y },
-      { x: x1, y },
+      { x: stageSize.width * 0.34, y },
+      { x: stageSize.width * 0.66, y },
     ]);
     setRefCm('');
     setCalibrating(true);
@@ -237,39 +273,22 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
 
   const applyCalibration = useCallback(() => {
     const cm = Number(refCm);
-    if (!refSeg || !artworkImage || !(cm > 0)) return;
+    const anchor = selected ?? placements[0];
+    const composite = anchor ? compositeRef.current.get(anchor.id) : undefined;
+    if (!refSeg || !anchor || !composite || !(cm > 0)) return;
     const result = calibrateFromReference({
-      quad: safeQuad,
+      quad: anchor.quad,
       refA: refSeg[0],
       refB: refSeg[1],
       refCm: cm,
-      aspect: artworkImage.width / artworkImage.height,
+      aspect: composite.imageWidth / composite.imageHeight,
     });
     if (!result) return;
     setCalibration(result);
     setCalibrating(false);
     setTrueSize(true);
-    // Snap the artwork to its true size immediately.
-    if (targetWidthCm) {
-      setQuad((cur) => (cur ? resizeQuadToWidthCm(cur, targetWidthCm, result) : cur));
-    }
-  }, [refCm, refSeg, artworkImage, safeQuad, targetWidthCm]);
-
-  const handleTrueSizeChange = useCallback(
-    (next: boolean) => {
-      setTrueSize(next);
-      if (next) applyTrueSize(targetWidthCm);
-    },
-    [applyTrueSize, targetWidthCm],
-  );
-
-  const handleSelectVariant = useCallback(
-    (index: number) => {
-      setVariantIndex(index);
-      if (trueSize) applyTrueSize(sizes[index]?.widthCm ?? null);
-    },
-    [trueSize, applyTrueSize, sizes],
-  );
+    relockAll(result);
+  }, [refCm, selected, placements, refSeg, relockAll]);
 
   const moveRefPoint = useCallback(
     (index: number, next: Point) => {
@@ -285,47 +304,148 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
     [stageSize.width, stageSize.height],
   );
 
-  const flatPoints = useMemo(() => safeQuad.flatMap((p) => [p.x, p.y]), [safeQuad]);
-  const refPoints = useMemo(
-    () => (refSeg ? [refSeg[0].x, refSeg[0].y, refSeg[1].x, refSeg[1].y] : []),
-    [refSeg],
+  // -------------------------------------------------------------- interaction
+
+  const movePointer = useRef<{ x: number; y: number } | null>(null);
+
+  const setCursor = useCallback((value: string) => {
+    const el = containerRef.current;
+    if (el && el.style.cursor !== value) el.style.cursor = value;
+  }, []);
+
+  const handleStageDown = useCallback(
+    (e: KonvaEventObject<PointerEvent>) => {
+      if (calibrating) return;
+      if (e.target.getClassName?.() === 'Circle') return; // a handle owns its drag
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (!pos) return;
+      // Topmost placement under the cursor wins (array order is z-order).
+      for (let i = placements.length - 1; i >= 0; i -= 1) {
+        if (pointInQuad(placements[i].quad, pos)) {
+          setSelectedId(placements[i].id);
+          movePointer.current = pos;
+          setCursor('grabbing');
+          return;
+        }
+      }
+      setSelectedId(null);
+    },
+    [calibrating, placements, setCursor],
   );
+
+  const handleStageMove = useCallback(
+    (e: KonvaEventObject<PointerEvent>) => {
+      const pos = e.target.getStage()?.getPointerPosition();
+      if (!pos) return;
+
+      if (!movePointer.current || !selectedId) {
+        if (!calibrating) {
+          const over = placements.some((p) => pointInQuad(p.quad, pos));
+          setCursor(over ? 'grab' : 'default');
+        }
+        return;
+      }
+
+      const dx = pos.x - movePointer.current.x;
+      const dy = pos.y - movePointer.current.y;
+      movePointer.current = pos;
+
+      setPlacements((ps) => {
+        const src = ps.find((p) => p.id === selectedId);
+        if (!src) return ps;
+        const moved = src.quad.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })) as Quad;
+        const c = quadCentroid(moved);
+        if (c.x < 0 || c.y < 0 || c.x > stageSize.width || c.y > stageSize.height) return ps;
+
+        const snap = snapPlacement({ candidate: moved, selectedId, placements: ps });
+        setGuides(snap.guides);
+        return ps.map((p) => (p.id === selectedId ? { ...p, quad: snap.quad } : p));
+      });
+    },
+    [selectedId, calibrating, placements, stageSize.width, stageSize.height, setCursor],
+  );
+
+  const endMove = useCallback(() => {
+    movePointer.current = null;
+    setGuides([]);
+    setCursor('default');
+  }, [setCursor]);
+
+  const moveCorner = useCallback(
+    (id: string, index: number, next: Point) => {
+      setPlacements((ps) =>
+        ps.map((p) => {
+          if (p.id !== id) return p;
+          const candidate = p.quad.map((pt, i) => (i === index ? next : pt)) as Quad;
+          if (!isConvexQuad(candidate) || minEdgeLength(candidate) < 12) return p;
+          return { ...p, quad: candidate };
+        }),
+      );
+    },
+    [],
+  );
+
+  // -------------------------------------------------------------- export
 
   const [exportError, setExportError] = useState<string | null>(null);
 
-  function handleDownload() {
-    if (!roomImage || !framed) return;
+  const handleDownload = useCallback(() => {
+    if (!roomImage || placements.length === 0) return;
     setExportError(null);
 
-    // Composed from source images rather than grabbed off the stage, so the
-    // corner handles and selection outline never reach the customer's file.
+    const exportPlacements = placements
+      .map((p) => {
+        const composite = compositeRef.current.get(p.id);
+        return composite ? { framedArtwork: composite.framed, quad: p.quad } : null;
+      })
+      .filter((x): x is { framedArtwork: HTMLCanvasElement; quad: Quad } => x !== null);
+
     const canvas = renderExportComposite({
       room: roomImage,
-      framedArtwork: framed,
-      quad: safeQuad,
+      placements: exportPlacements,
       stageWidth: stageSize.width,
       stageHeight: stageSize.height,
       shadow: realism.shadow,
     });
 
     if (!canvas) {
-      setExportError('Could not render the preview. Try adjusting the corners.');
+      setExportError('Could not render the preview. Try adjusting the pieces.');
       return;
     }
 
+    const credit = selectedArtwork ?? artworkById(placements[0].artworkId);
     stampExportWatermark(canvas, {
-      title: active?.title ?? 'Artwork',
-      artist: active?.artistName ?? 'ArtSpace',
+      title: placements.length > 1 ? `${placements.length} works` : credit?.title ?? 'Artwork',
+      artist: credit?.artistName ?? 'ArtSpace',
     });
 
     try {
-      downloadCanvasAsJpeg(canvas, `artspace-preview-${active?.id ?? 'artwork'}.jpg`);
+      downloadCanvasAsJpeg(canvas, 'artspace-preview.jpg');
     } catch {
-      // A tainted canvas throws here — happens if the artwork host does not
-      // send permissive CORS headers.
       setExportError('Could not export this image. Please try again later.');
     }
-  }
+  }, [roomImage, placements, stageSize, realism.shadow, selectedArtwork, artworkById]);
+
+  // -------------------------------------------------------------- render data
+
+  const selectedQuad = selected?.quad ?? null;
+  const selectedFlat = useMemo(
+    () => (selectedQuad ? selectedQuad.flatMap((p) => [p.x, p.y]) : []),
+    [selectedQuad],
+  );
+  const refPoints = useMemo(
+    () => (refSeg ? [refSeg[0].x, refSeg[0].y, refSeg[1].x, refSeg[1].y] : []),
+    [refSeg],
+  );
+
+  const placementSummaries = placements.map((p) => {
+    const artwork = artworkById(p.artworkId);
+    return {
+      id: p.id,
+      title: artwork?.title ?? 'Artwork',
+      thumbnailUrl: artwork?.displayUrl ?? '',
+    };
+  });
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -343,96 +463,95 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
               style={{ touchAction: 'none' }}
               onPointerDown={handleStageDown}
               onPointerMove={handleStageMove}
-              onPointerUp={handleStageUp}
-              onPointerLeave={handleStageUp}
+              onPointerUp={endMove}
+              onPointerLeave={endMove}
             >
               <Layer listening={false}>
-                <KonvaImage
-                  image={roomImage}
-                  width={stageSize.width}
-                  height={stageSize.height}
-                />
+                <KonvaImage image={roomImage} width={stageSize.width} height={stageSize.height} />
               </Layer>
 
-              <Layer listening={false}>
-                {compositeCanvas ? (
-                  <KonvaImage
-                    // `version` forces Konva to re-read the canvas, which it
-                    // otherwise caches by object identity.
-                    key={version}
-                    image={compositeCanvas}
-                    width={stageSize.width}
-                    height={stageSize.height}
+              {/* One layer per placement, in z-order. */}
+              {placements.map((p) => {
+                const artwork = artworkById(p.artworkId);
+                if (!artwork) return null;
+                return (
+                  <PlacementImage
+                    key={p.id}
+                    placementId={p.id}
+                    displayUrl={artwork.displayUrl}
+                    quad={p.quad}
+                    frame={p.frame}
+                    mat={p.mat}
+                    realism={realism}
+                    stageWidth={stageSize.width}
+                    stageHeight={stageSize.height}
+                    onComposite={onComposite}
                   />
+                );
+              })}
+
+              {/* Overlay: selection outline, corner handles, guides, calibration. */}
+              <Layer>
+                {guides.map((g, i) => (
+                  <Line key={`guide-${i}`} points={g} stroke="#f59e0b" strokeWidth={1} dash={[4, 4]} listening={false} />
+                ))}
+
+                {selectedQuad && !calibrating ? (
+                  <>
+                    <Line
+                      points={selectedFlat}
+                      closed
+                      stroke="rgba(255,255,255,0.9)"
+                      strokeWidth={1.5}
+                      dash={[6, 4]}
+                      listening={false}
+                    />
+                    {selectedQuad.map((corner, index) => (
+                      <Circle
+                        key={index}
+                        x={corner.x}
+                        y={corner.y}
+                        radius={HANDLE_RADIUS}
+                        fill="#ffffff"
+                        stroke="#1c1917"
+                        strokeWidth={1.5}
+                        draggable
+                        onDragMove={(e) =>
+                          selectedId && moveCorner(selectedId, index, { x: e.target.x(), y: e.target.y() })
+                        }
+                        onDragEnd={(e) => {
+                          if (selected) {
+                            e.target.position({ x: selected.quad[index].x, y: selected.quad[index].y });
+                            const width = targetWidthFor(selected);
+                            if (trueSize && calibration && width) {
+                              updateQuad(selected.id, resizeQuadToWidthCm(selected.quad, width, calibration));
+                            }
+                          }
+                        }}
+                      />
+                    ))}
+                  </>
+                ) : null}
+
+                {calibrating && refSeg ? (
+                  <>
+                    <Line points={refPoints} stroke="#f59e0b" strokeWidth={2.5} dash={[8, 5]} listening={false} />
+                    {refSeg.map((p, index) => (
+                      <Circle
+                        key={index}
+                        x={p.x}
+                        y={p.y}
+                        radius={HANDLE_RADIUS}
+                        fill="#f59e0b"
+                        stroke="#1c1917"
+                        strokeWidth={1.5}
+                        draggable
+                        onDragMove={(e) => moveRefPoint(index, { x: e.target.x(), y: e.target.y() })}
+                      />
+                    ))}
+                  </>
                 ) : null}
               </Layer>
-
-              <Layer>
-                <Line
-                  points={flatPoints}
-                  closed
-                  stroke={quadValid ? 'rgba(255,255,255,0.85)' : 'rgba(220,60,60,0.9)'}
-                  strokeWidth={1.5}
-                  dash={[6, 4]}
-                  listening={false}
-                />
-
-                {!calibrating &&
-                  safeQuad.map((corner, index) => (
-                    <Circle
-                      key={index}
-                      x={corner.x}
-                      y={corner.y}
-                      radius={HANDLE_RADIUS}
-                      fill="#ffffff"
-                      stroke="#1c1917"
-                      strokeWidth={1.5}
-                      draggable
-                      onDragMove={(e) => moveCorner(index, { x: e.target.x(), y: e.target.y() })}
-                      onDragEnd={(e) => {
-                        // Snap the handle back if the drag was rejected as invalid.
-                        e.target.position({ x: safeQuad[index].x, y: safeQuad[index].y });
-                        // In true-size mode, a perspective change must not change
-                        // the artwork's physical size — relock it.
-                        if (trueSize) applyTrueSize(targetWidthCm);
-                      }}
-                      onMouseEnter={(e) => {
-                        const container = e.target.getStage()?.container();
-                        if (container) container.style.cursor = 'grab';
-                      }}
-                      onMouseLeave={(e) => {
-                        const container = e.target.getStage()?.container();
-                        if (container) container.style.cursor = 'default';
-                      }}
-                    />
-                  ))}
-              </Layer>
-
-              {/* Calibration: a reference segment on the wall plane. */}
-              {calibrating && refSeg ? (
-                <Layer>
-                  <Line
-                    points={refPoints}
-                    stroke="#f59e0b"
-                    strokeWidth={2.5}
-                    dash={[8, 5]}
-                    listening={false}
-                  />
-                  {refSeg.map((p, index) => (
-                    <Circle
-                      key={index}
-                      x={p.x}
-                      y={p.y}
-                      radius={HANDLE_RADIUS}
-                      fill="#f59e0b"
-                      stroke="#1c1917"
-                      strokeWidth={1.5}
-                      draggable
-                      onDragMove={(e) => moveRefPoint(index, { x: e.target.x(), y: e.target.y() })}
-                    />
-                  ))}
-                </Layer>
-              ) : null}
             </Stage>
           ) : (
             <div className="flex h-96 items-center justify-center text-sm text-stone-500">
@@ -444,27 +563,30 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         <p className="mt-3 text-xs text-stone-500">
           {calibrating
             ? 'Drag the amber endpoints across something of a known size on the wall, then enter its length.'
-            : 'Drag the artwork to move it. Drag any corner to match the angle of your wall.'}
+            : 'Click a piece to select it. Drag to move, drag a corner to match your wall, or add more from the panel.'}
         </p>
       </div>
 
       <SpaceControls
         artworks={artworks}
-        activeId={active?.id ?? ''}
-        onSelect={setActiveId}
-        frame={frame}
-        onFrameChange={setFrame}
-        mat={mat}
-        onMatChange={setMat}
+        placements={placementSummaries}
+        selectedId={selectedId}
+        onSelectPlacement={setSelectedId}
+        onAddArtwork={addArtwork}
+        onDeletePlacement={deletePlacement}
+        onDuplicatePlacement={duplicatePlacement}
+        onBringForward={(id) => reorder(id, 1)}
+        onSendBack={(id) => reorder(id, -1)}
+        selectedArtwork={selectedArtwork}
+        frame={selected?.frame ?? 'none'}
+        onFrameChange={(frame) => patchSelected({ frame })}
+        mat={selected?.mat ?? { width: 0, color: 'white' }}
+        onMatChange={(mat) => patchSelected({ mat })}
+        sizes={selectedSizes}
+        variantIndex={selected?.variantIndex ?? 0}
+        onSelectVariant={handleSelectVariant}
         realism={realism}
         onRealismChange={setRealism}
-        onDownload={handleDownload}
-        exportError={exportError}
-        onReset={onReset}
-        activeArtwork={active}
-        sizes={sizes}
-        variantIndex={variantIndex}
-        onSelectVariant={handleSelectVariant}
         calibrated={calibration !== null}
         calibrating={calibrating}
         onStartCalibration={startCalibration}
@@ -474,6 +596,9 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         onRefCmChange={setRefCm}
         trueSize={trueSize}
         onTrueSizeChange={handleTrueSizeChange}
+        onDownload={handleDownload}
+        exportError={exportError}
+        onReset={onReset}
       />
     </div>
   );
