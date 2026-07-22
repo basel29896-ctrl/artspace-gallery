@@ -6,10 +6,13 @@ import { ContactArtistDialog } from '@/components/artwork/ContactArtistDialog';
 
 const FRAME_OPTIONS: { value: FrameStyle; label: string; swatch: string }[] = [
   { value: 'none', label: 'None', swatch: 'linear-gradient(135deg,#e7e5e4,#d6d3d1)' },
-  { value: 'black', label: 'Black', swatch: 'linear-gradient(135deg,#2b2622,#141210)' },
-  { value: 'white', label: 'White', swatch: 'linear-gradient(135deg,#ffffff,#e3ded4)' },
-  { value: 'wood', label: 'Wood', swatch: 'linear-gradient(135deg,#a9773f,#7d5229)' },
+  { value: 'thin', label: 'Thin', swatch: 'linear-gradient(135deg,#3a352d,#17140f)' },
+  { value: 'black', label: 'Black', swatch: 'linear-gradient(135deg,#3a342e,#141210)' },
+  { value: 'white', label: 'White', swatch: 'linear-gradient(135deg,#ffffff,#ddd8ce)' },
+  { value: 'oak', label: 'Oak', swatch: 'linear-gradient(135deg,#e0c288,#a97e42)' },
+  { value: 'walnut', label: 'Walnut', swatch: 'linear-gradient(135deg,#7d5433,#3f2817)' },
   { value: 'gold', label: 'Gold', swatch: 'linear-gradient(135deg,#f6e6ab,#8a6a24)' },
+  { value: 'silver', label: 'Silver', swatch: 'linear-gradient(135deg,#e8eaec,#9aa0a6)' },
 ];
 
 const MAT_COLORS: { value: MatColor; label: string; swatch: string }[] = [
@@ -86,7 +89,7 @@ export function SpaceControls({
 
       <section>
         <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Frame</h2>
-        <div className="mt-3 grid grid-cols-5 gap-2">
+        <div className="mt-3 grid grid-cols-4 gap-2">
           {FRAME_OPTIONS.map((option) => (
             <button
               key={option.value}

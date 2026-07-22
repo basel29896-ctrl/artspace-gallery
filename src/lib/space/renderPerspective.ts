@@ -8,99 +8,119 @@ import { homographyFromUnitSquare, project, type Quad } from './homography';
  */
 const SUBDIVISIONS = 16;
 
-export type FrameStyle = 'none' | 'black' | 'white' | 'wood' | 'gold';
+export type FrameStyle =
+  | 'none'
+  | 'black'
+  | 'thin'
+  | 'white'
+  | 'oak'
+  | 'walnut'
+  | 'gold'
+  | 'silver';
 
 export type FrameSpec = {
   /** Border thickness as a fraction of the artwork's shorter edge. */
   ratio: number;
-  paint: (ctx: CanvasRenderingContext2D, w: number, h: number, inset: number) => void;
+  /** Base colour of the moulding face. */
+  color: string;
+  /** How reflective the profile reads: scales the light/shadow across the bevel. */
+  sheen?: number;
 };
 
 /**
- * Paints a moulding profile with real depth: an outer chamfer that catches light
- * on its top-left, a flat face, and an inner rabbet that falls into shadow where
- * the frame steps down to the artwork/mat. This is what separates a framed piece
- * from a coloured border.
+ * Paints a mitered moulding: the border is split into four bevelled sides, each
+ * shaded across its depth so the frame reads as a raised, angled profile lit from
+ * the top-left — not a flat coloured border. An inner rabbet drops into shadow at
+ * the opening and a thin outer line seats the frame against the wall.
  */
 function paintMoulding(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   inset: number,
-  face: string | CanvasGradient,
-  opts: { highlight: string; shadow: string; innerLip: string },
+  color: string,
+  sheen = 1,
 ) {
-  ctx.fillStyle = face;
+  // Base face.
+  ctx.fillStyle = color;
   ctx.fillRect(0, 0, w, h);
 
-  const chamfer = Math.max(inset * 0.22, 1);
-  // Outer top + left chamfer highlight, bottom + right chamfer shadow.
-  ctx.fillStyle = opts.highlight;
-  ctx.fillRect(0, 0, w, chamfer);
-  ctx.fillRect(0, 0, chamfer, h);
-  ctx.fillStyle = opts.shadow;
-  ctx.fillRect(0, h - chamfer, w, chamfer);
-  ctx.fillRect(w - chamfer, 0, chamfer, h);
+  const iL = inset;
+  const iT = inset;
+  const iR = w - inset;
+  const iB = h - inset;
 
-  // Inner rabbet: a dark step where the frame drops to the artwork opening.
-  const lip = Math.max(inset * 0.16, 1.5);
-  ctx.strokeStyle = opts.innerLip;
+  // Each side is a trapezoid from the outer edge to the opening. `lit` biases the
+  // whole side brighter (top/left) or darker (bottom/right); the gradient runs
+  // across the bevel from a bright outer chamfer to a darker inner edge.
+  const hi = 0.6 * sheen;
+  const lo = 0.55 * sheen;
+
+  const side = (
+    pts: [number, number][],
+    gx0: number,
+    gy0: number,
+    gx1: number,
+    gy1: number,
+    outer: string,
+    inner: string,
+  ) => {
+    const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    g.addColorStop(0, outer);
+    g.addColorStop(1, inner);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // Top — lit.
+  side([[0, 0], [w, 0], [iR, iT], [iL, iT]], 0, 0, 0, iT,
+    `rgba(255,255,255,${hi})`, 'rgba(0,0,0,0.12)');
+  // Left — lit.
+  side([[0, 0], [iL, iT], [iL, iB], [0, h]], 0, 0, iL, 0,
+    `rgba(255,255,255,${hi})`, 'rgba(0,0,0,0.12)');
+  // Bottom — shadowed.
+  side([[0, h], [iL, iB], [iR, iB], [w, h]], 0, h, 0, iB,
+    `rgba(0,0,0,${lo})`, 'rgba(0,0,0,0.08)');
+  // Right — shadowed.
+  side([[w, 0], [w, h], [iR, iB], [iR, iT]], w, 0, iR, 0,
+    `rgba(0,0,0,${lo})`, 'rgba(0,0,0,0.08)');
+
+  // Inner rabbet: a hard dark step where the frame drops to the opening.
+  const lip = Math.max(inset * 0.12, 1.5);
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
   ctx.lineWidth = lip;
-  ctx.strokeRect(inset - lip / 2, inset - lip / 2, w - inset * 2 + lip, h - inset * 2 + lip);
+  ctx.strokeRect(iL - lip / 2, iT - lip / 2, w - inset * 2 + lip, h - inset * 2 + lip);
+
+  // Thin outer seam so the moulding has a crisp edge against the wall.
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+  ctx.lineWidth = Math.max(inset * 0.04, 1);
+  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
 }
 
 export const FRAMES: Record<FrameStyle, FrameSpec | null> = {
   none: null,
-  black: {
-    ratio: 0.04,
-    paint: (ctx, w, h, inset) =>
-      paintMoulding(ctx, w, h, inset, '#1a1714', {
-        highlight: 'rgba(255,255,255,0.10)',
-        shadow: 'rgba(0,0,0,0.5)',
-        innerLip: 'rgba(0,0,0,0.7)',
-      }),
-  },
-  white: {
-    ratio: 0.04,
-    paint: (ctx, w, h, inset) =>
-      paintMoulding(ctx, w, h, inset, '#f3f1ec', {
-        highlight: 'rgba(255,255,255,0.75)',
-        shadow: 'rgba(120,112,100,0.4)',
-        innerLip: 'rgba(90,84,74,0.45)',
-      }),
-  },
-  wood: {
-    ratio: 0.055,
-    paint: (ctx, w, h, inset) => {
-      const grain = ctx.createLinearGradient(0, 0, w, h);
-      grain.addColorStop(0, '#8b5e34');
-      grain.addColorStop(0.45, '#a9773f');
-      grain.addColorStop(0.7, '#7d5229');
-      grain.addColorStop(1, '#9c6b38');
-      paintMoulding(ctx, w, h, inset, grain, {
-        highlight: 'rgba(255,225,180,0.22)',
-        shadow: 'rgba(45,25,8,0.5)',
-        innerLip: 'rgba(50,28,10,0.6)',
-      });
-    },
-  },
-  gold: {
-    ratio: 0.05,
-    paint: (ctx, w, h, inset) => {
-      const gilt = ctx.createLinearGradient(0, 0, w, h);
-      gilt.addColorStop(0, '#8a6a24');
-      gilt.addColorStop(0.3, '#e6c76a');
-      gilt.addColorStop(0.5, '#f6e6ab');
-      gilt.addColorStop(0.72, '#c9a13f');
-      gilt.addColorStop(1, '#8a6a24');
-      paintMoulding(ctx, w, h, inset, gilt, {
-        highlight: 'rgba(255,244,200,0.55)',
-        shadow: 'rgba(80,55,10,0.5)',
-        innerLip: 'rgba(70,48,10,0.6)',
-      });
-    },
-  },
+  thin: { ratio: 0.02, color: '#17140f', sheen: 0.7 },
+  black: { ratio: 0.05, color: '#1a1714', sheen: 0.8 },
+  white: { ratio: 0.05, color: '#f0ede6', sheen: 0.55 },
+  oak: { ratio: 0.06, color: '#c19a5b', sheen: 0.6 },
+  walnut: { ratio: 0.06, color: '#5f3f28', sheen: 0.7 },
+  gold: { ratio: 0.055, color: '#c9a13f', sheen: 1.3 },
+  silver: { ratio: 0.05, color: '#b8bcc0', sheen: 1.2 },
 };
+
+function paintFrame(
+  ctx: CanvasRenderingContext2D,
+  spec: FrameSpec,
+  w: number,
+  h: number,
+  inset: number,
+) {
+  paintMoulding(ctx, w, h, inset, spec.color, spec.sheen ?? 1);
+}
 
 export type RealismSettings = {
   brightness: number; // 0.5 – 1.5
@@ -163,7 +183,7 @@ export function composeFramedArtwork(
   if (!ctx) return canvas;
 
   // 1. Frame fills the whole board; the mat/artwork then cover its interior.
-  if (spec) spec.paint(ctx, canvas.width, canvas.height, frameInset);
+  if (spec) paintFrame(ctx, spec, canvas.width, canvas.height, frameInset);
 
   const artX = frameInset + matInset;
   const artY = frameInset + matInset;
