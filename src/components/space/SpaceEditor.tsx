@@ -6,7 +6,7 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Quad, Point } from '@/lib/space/homography';
 import { isConvexQuad, minEdgeLength, pointInQuad, quadCentroid } from '@/lib/space/homography';
-import type { FrameStyle, RealismSettings } from '@/lib/space/renderPerspective';
+import type { FrameStyle, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
 import { useArtworkComposite, useImage } from './useArtworkComposite';
 import {
   stampExportWatermark,
@@ -46,6 +46,7 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
   const [stageSize, setStageSize] = useState({ width: 900, height: 600 });
   const [activeId, setActiveId] = useState(initialArtworkId);
   const [frame, setFrame] = useState<FrameStyle>('none');
+  const [mat, setMat] = useState<MatSettings>({ width: 0, color: 'white' });
   const [realism, setRealism] = useState<RealismSettings>({
     brightness: 1,
     warmth: 0,
@@ -88,6 +89,7 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
     artwork: artworkImage,
     quad: safeQuad,
     frame,
+    mat,
     realism,
     stageWidth: stageSize.width,
     stageHeight: stageSize.height,
@@ -309,6 +311,8 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         onSelect={setActiveId}
         frame={frame}
         onFrameChange={setFrame}
+        mat={mat}
+        onMatChange={setMat}
         realism={realism}
         onRealismChange={setRealism}
         onDownload={handleDownload}

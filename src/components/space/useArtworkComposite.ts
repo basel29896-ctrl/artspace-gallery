@@ -6,6 +6,7 @@ import {
   composeFramedArtwork,
   drawPerspective,
   type FrameStyle,
+  type MatSettings,
   type RealismSettings,
 } from '@/lib/space/renderPerspective';
 
@@ -51,6 +52,7 @@ type Options = {
   artwork: HTMLImageElement | null;
   quad: Quad;
   frame: FrameStyle;
+  mat: MatSettings;
   realism: RealismSettings;
   stageWidth: number;
   stageHeight: number;
@@ -68,6 +70,7 @@ export function useArtworkComposite({
   artwork,
   quad,
   frame,
+  mat,
   realism,
   stageWidth,
   stageHeight,
@@ -77,8 +80,8 @@ export function useArtworkComposite({
 
   const framed = useMemo(() => {
     if (!artwork || typeof document === 'undefined') return null;
-    return composeFramedArtwork(artwork, artwork.width, artwork.height, frame, realism);
-  }, [artwork, frame, realism]);
+    return composeFramedArtwork(artwork, artwork.width, artwork.height, frame, mat, realism);
+  }, [artwork, frame, mat, realism]);
 
   const quadValid = isConvexQuad(quad) && minEdgeLength(quad) > 8;
 

@@ -8,7 +8,7 @@ import { homographyFromUnitSquare, project, type Quad } from './homography';
  */
 const SUBDIVISIONS = 16;
 
-export type FrameStyle = 'none' | 'black' | 'wood' | 'gold';
+export type FrameStyle = 'none' | 'black' | 'white' | 'wood' | 'gold';
 
 export type FrameSpec = {
   /** Border thickness as a fraction of the artwork's shorter edge. */
@@ -16,36 +16,76 @@ export type FrameSpec = {
   paint: (ctx: CanvasRenderingContext2D, w: number, h: number, inset: number) => void;
 };
 
+/**
+ * Paints a moulding profile with real depth: an outer chamfer that catches light
+ * on its top-left, a flat face, and an inner rabbet that falls into shadow where
+ * the frame steps down to the artwork/mat. This is what separates a framed piece
+ * from a coloured border.
+ */
+function paintMoulding(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  inset: number,
+  face: string | CanvasGradient,
+  opts: { highlight: string; shadow: string; innerLip: string },
+) {
+  ctx.fillStyle = face;
+  ctx.fillRect(0, 0, w, h);
+
+  const chamfer = Math.max(inset * 0.22, 1);
+  // Outer top + left chamfer highlight, bottom + right chamfer shadow.
+  ctx.fillStyle = opts.highlight;
+  ctx.fillRect(0, 0, w, chamfer);
+  ctx.fillRect(0, 0, chamfer, h);
+  ctx.fillStyle = opts.shadow;
+  ctx.fillRect(0, h - chamfer, w, chamfer);
+  ctx.fillRect(w - chamfer, 0, chamfer, h);
+
+  // Inner rabbet: a dark step where the frame drops to the artwork opening.
+  const lip = Math.max(inset * 0.16, 1.5);
+  ctx.strokeStyle = opts.innerLip;
+  ctx.lineWidth = lip;
+  ctx.strokeRect(inset - lip / 2, inset - lip / 2, w - inset * 2 + lip, h - inset * 2 + lip);
+}
+
 export const FRAMES: Record<FrameStyle, FrameSpec | null> = {
   none: null,
   black: {
-    ratio: 0.045,
-    paint: (ctx, w, h, inset) => {
-      ctx.fillStyle = '#141210';
-      ctx.fillRect(0, 0, w, h);
-      // Inner bevel catches light differently from the face.
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-      ctx.lineWidth = Math.max(inset * 0.12, 1);
-      ctx.strokeRect(inset * 0.5, inset * 0.5, w - inset, h - inset);
-    },
+    ratio: 0.04,
+    paint: (ctx, w, h, inset) =>
+      paintMoulding(ctx, w, h, inset, '#1a1714', {
+        highlight: 'rgba(255,255,255,0.10)',
+        shadow: 'rgba(0,0,0,0.5)',
+        innerLip: 'rgba(0,0,0,0.7)',
+      }),
+  },
+  white: {
+    ratio: 0.04,
+    paint: (ctx, w, h, inset) =>
+      paintMoulding(ctx, w, h, inset, '#f3f1ec', {
+        highlight: 'rgba(255,255,255,0.75)',
+        shadow: 'rgba(120,112,100,0.4)',
+        innerLip: 'rgba(90,84,74,0.45)',
+      }),
   },
   wood: {
-    ratio: 0.06,
+    ratio: 0.055,
     paint: (ctx, w, h, inset) => {
       const grain = ctx.createLinearGradient(0, 0, w, h);
       grain.addColorStop(0, '#8b5e34');
       grain.addColorStop(0.45, '#a9773f');
       grain.addColorStop(0.7, '#7d5229');
       grain.addColorStop(1, '#9c6b38');
-      ctx.fillStyle = grain;
-      ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = 'rgba(60,35,15,0.45)';
-      ctx.lineWidth = Math.max(inset * 0.1, 1);
-      ctx.strokeRect(inset * 0.5, inset * 0.5, w - inset, h - inset);
+      paintMoulding(ctx, w, h, inset, grain, {
+        highlight: 'rgba(255,225,180,0.22)',
+        shadow: 'rgba(45,25,8,0.5)',
+        innerLip: 'rgba(50,28,10,0.6)',
+      });
     },
   },
   gold: {
-    ratio: 0.055,
+    ratio: 0.05,
     paint: (ctx, w, h, inset) => {
       const gilt = ctx.createLinearGradient(0, 0, w, h);
       gilt.addColorStop(0, '#8a6a24');
@@ -53,11 +93,11 @@ export const FRAMES: Record<FrameStyle, FrameSpec | null> = {
       gilt.addColorStop(0.5, '#f6e6ab');
       gilt.addColorStop(0.72, '#c9a13f');
       gilt.addColorStop(1, '#8a6a24');
-      ctx.fillStyle = gilt;
-      ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = 'rgba(90,65,15,0.5)';
-      ctx.lineWidth = Math.max(inset * 0.1, 1);
-      ctx.strokeRect(inset * 0.5, inset * 0.5, w - inset, h - inset);
+      paintMoulding(ctx, w, h, inset, gilt, {
+        highlight: 'rgba(255,244,200,0.55)',
+        shadow: 'rgba(80,55,10,0.5)',
+        innerLip: 'rgba(70,48,10,0.6)',
+      });
     },
   },
 };
@@ -68,36 +108,111 @@ export type RealismSettings = {
   shadow: boolean;
 };
 
+export type MatColor = 'white' | 'ivory' | 'grey' | 'black';
+
+export type MatSettings = {
+  /** Mat (passe-partout) width as a fraction of the artwork's shorter edge.
+   *  0 disables matting entirely. */
+  width: number;
+  color: MatColor;
+};
+
+const MAT_FACE: Record<MatColor, string> = {
+  white: '#f7f5f0',
+  ivory: '#efe7d6',
+  grey: '#b9b4ac',
+  black: '#181614',
+};
+
+// A cut mat has a slightly darker bevelled edge where the board's core shows
+// through at the opening; this is the detail that reads as "matted" rather than
+// "padded". Paired with a soft cast shadow onto the artwork below it.
+const MAT_BEVEL: Record<MatColor, string> = {
+  white: '#d8d2c6',
+  ivory: '#d3c6ac',
+  grey: '#8f8a82',
+  black: '#000000',
+};
+
 /**
- * Composites artwork + frame onto an offscreen canvas at native resolution.
- * Returned separately from the warp so the expensive part is only redone when
- * the artwork, frame, or colour settings change — not on every corner drag.
+ * Composites artwork + optional mat + optional frame onto an offscreen canvas at
+ * native resolution. Returned separately from the warp so the expensive part is
+ * only redone when the artwork, frame, mat, or colour settings change — not on
+ * every corner drag.
+ *
+ * Layout, outside → in: frame border, then mat board, then the artwork.
  */
 export function composeFramedArtwork(
   image: CanvasImageSource,
   imageWidth: number,
   imageHeight: number,
   frame: FrameStyle,
+  mat: MatSettings,
   realism: RealismSettings,
 ): HTMLCanvasElement {
+  const shortEdge = Math.min(imageWidth, imageHeight);
   const spec = FRAMES[frame];
-  const inset = spec ? Math.min(imageWidth, imageHeight) * spec.ratio : 0;
+  const frameInset = spec ? shortEdge * spec.ratio : 0;
+  const matInset = mat.width > 0 ? shortEdge * mat.width : 0;
 
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(imageWidth + inset * 2);
-  canvas.height = Math.round(imageHeight + inset * 2);
+  canvas.width = Math.round(imageWidth + (frameInset + matInset) * 2);
+  canvas.height = Math.round(imageHeight + (frameInset + matInset) * 2);
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
 
-  if (spec) spec.paint(ctx, canvas.width, canvas.height, inset);
+  // 1. Frame fills the whole board; the mat/artwork then cover its interior.
+  if (spec) spec.paint(ctx, canvas.width, canvas.height, frameInset);
 
-  ctx.drawImage(image, inset, inset, imageWidth, imageHeight);
+  const artX = frameInset + matInset;
+  const artY = frameInset + matInset;
 
-  // Colour grading is applied to the artwork area only — a real frame does not
-  // change hue with the room's light the way a canvas surface does.
+  // 2. Mat board around the artwork opening.
+  if (matInset > 0) {
+    ctx.fillStyle = MAT_FACE[mat.color];
+    ctx.fillRect(
+      frameInset,
+      frameInset,
+      canvas.width - frameInset * 2,
+      canvas.height - frameInset * 2,
+    );
+
+    // Bevelled core line at the opening, plus a soft inner shadow so the mat
+    // sits visibly proud of the artwork.
+    const bevel = Math.max(matInset * 0.06, 1.5);
+    ctx.strokeStyle = MAT_BEVEL[mat.color];
+    ctx.lineWidth = bevel;
+    ctx.strokeRect(
+      artX - bevel / 2,
+      artY - bevel / 2,
+      imageWidth + bevel,
+      imageHeight + bevel,
+    );
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = Math.max(matInset * 0.08, 3);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.max(matInset * 0.03, 1);
+    ctx.strokeStyle = 'rgba(0,0,0,0.001)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(artX, artY, imageWidth, imageHeight);
+    ctx.restore();
+  }
+
+  // 3. Artwork.
+  ctx.drawImage(image, artX, artY, imageWidth, imageHeight);
+
+  // Colour grading is applied to the artwork area only — a real frame or mat
+  // does not change hue with the room's light the way a canvas surface does.
   if (realism.brightness !== 1 || realism.warmth !== 0) {
-    const region = ctx.getImageData(inset, inset, Math.round(imageWidth), Math.round(imageHeight));
+    const region = ctx.getImageData(
+      Math.round(artX),
+      Math.round(artY),
+      Math.round(imageWidth),
+      Math.round(imageHeight),
+    );
     const data = region.data;
     const warmR = 1 + realism.warmth * 0.18;
     const warmB = 1 - realism.warmth * 0.18;
@@ -107,7 +222,7 @@ export function composeFramedArtwork(
       data[i + 1] = Math.min(255, data[i + 1] * realism.brightness);
       data[i + 2] = Math.min(255, data[i + 2] * realism.brightness * warmB);
     }
-    ctx.putImageData(region, inset, inset);
+    ctx.putImageData(region, Math.round(artX), Math.round(artY));
   }
 
   return canvas;

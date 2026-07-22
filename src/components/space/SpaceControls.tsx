@@ -1,14 +1,22 @@
 'use client';
 
-import type { FrameStyle, RealismSettings } from '@/lib/space/renderPerspective';
+import type { FrameStyle, MatColor, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
 import type { SpaceArtwork } from '@/lib/artworks/queries';
 import { ContactArtistDialog } from '@/components/artwork/ContactArtistDialog';
 
 const FRAME_OPTIONS: { value: FrameStyle; label: string; swatch: string }[] = [
   { value: 'none', label: 'None', swatch: 'linear-gradient(135deg,#e7e5e4,#d6d3d1)' },
   { value: 'black', label: 'Black', swatch: 'linear-gradient(135deg,#2b2622,#141210)' },
+  { value: 'white', label: 'White', swatch: 'linear-gradient(135deg,#ffffff,#e3ded4)' },
   { value: 'wood', label: 'Wood', swatch: 'linear-gradient(135deg,#a9773f,#7d5229)' },
   { value: 'gold', label: 'Gold', swatch: 'linear-gradient(135deg,#f6e6ab,#8a6a24)' },
+];
+
+const MAT_COLORS: { value: MatColor; label: string; swatch: string }[] = [
+  { value: 'white', label: 'White', swatch: '#f7f5f0' },
+  { value: 'ivory', label: 'Ivory', swatch: '#efe7d6' },
+  { value: 'grey', label: 'Grey', swatch: '#b9b4ac' },
+  { value: 'black', label: 'Black', swatch: '#181614' },
 ];
 
 type Props = {
@@ -18,6 +26,8 @@ type Props = {
   onSelect: (id: string) => void;
   frame: FrameStyle;
   onFrameChange: (frame: FrameStyle) => void;
+  mat: MatSettings;
+  onMatChange: (mat: MatSettings) => void;
   realism: RealismSettings;
   onRealismChange: (realism: RealismSettings) => void;
   onDownload: () => void;
@@ -32,6 +42,8 @@ export function SpaceControls({
   onSelect,
   frame,
   onFrameChange,
+  mat,
+  onMatChange,
   realism,
   onRealismChange,
   onDownload,
@@ -74,7 +86,7 @@ export function SpaceControls({
 
       <section>
         <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Frame</h2>
-        <div className="mt-3 grid grid-cols-4 gap-2">
+        <div className="mt-3 grid grid-cols-5 gap-2">
           {FRAME_OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -83,6 +95,56 @@ export function SpaceControls({
               aria-pressed={frame === option.value}
               className={`flex flex-col items-center gap-1.5 rounded-sm border p-2 text-[11px] transition ${
                 frame === option.value
+                  ? 'border-stone-900 text-stone-900'
+                  : 'border-stone-200 text-stone-500 hover:border-stone-400'
+              }`}
+            >
+              <span
+                aria-hidden
+                className="h-6 w-6 rounded-sm ring-1 ring-stone-900/10"
+                style={{ background: option.swatch }}
+              />
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Mat</h2>
+          <span className="text-xs tabular-nums text-stone-500">
+            {mat.width === 0 ? 'Off' : `${Math.round(mat.width * 100)}%`}
+          </span>
+        </div>
+
+        <input
+          aria-label="Mat width"
+          type="range"
+          min={0}
+          max={0.16}
+          step={0.005}
+          value={mat.width}
+          onChange={(e) => onMatChange({ ...mat, width: Number(e.target.value) })}
+          className="mt-3 w-full accent-stone-900"
+        />
+
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {MAT_COLORS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() =>
+                onMatChange({
+                  color: option.value,
+                  // Nudge the mat on if the user picks a colour while it is off.
+                  width: mat.width === 0 ? 0.06 : mat.width,
+                })
+              }
+              aria-pressed={mat.color === option.value}
+              disabled={mat.width === 0}
+              className={`flex flex-col items-center gap-1.5 rounded-sm border p-2 text-[11px] transition disabled:opacity-40 ${
+                mat.color === option.value && mat.width > 0
                   ? 'border-stone-900 text-stone-900'
                   : 'border-stone-200 text-stone-500 hover:border-stone-400'
               }`}
