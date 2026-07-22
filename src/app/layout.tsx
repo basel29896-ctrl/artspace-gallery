@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Instrument_Serif, Inter } from 'next/font/google';
 import './globals.css';
 import { SiteHeader } from '@/components/nav/SiteHeader';
@@ -25,6 +25,15 @@ const bodySans = Inter({
 export const metadata: Metadata = {
   title: 'ArtSpace Gallery',
   description: 'A subscription platform for artists to showcase and sell their work.',
+};
+
+// viewportFit: cover lets the room fill edge-to-edge behind notches; the panel
+// then reclaims the safe-area inset it needs via env(safe-area-inset-*).
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#f7f4ee',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

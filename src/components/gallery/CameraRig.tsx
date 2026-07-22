@@ -21,6 +21,24 @@ const AZIMUTH_MAX = 1.62;
 const CAMERA_ORIGIN = new THREE.Vector3(0, EYE_HEIGHT, 1.2);
 const LOOK_DISTANCE = 14;
 
+/**
+ * The design vertical FOV, tuned against a landscape viewport. Vertical FOV
+ * alone crops the walls hard on a tall phone: the horizontal angle shrinks with
+ * the aspect ratio, so the art zooms in and the room loses its structure. We
+ * hold the *horizontal* FOV constant instead and widen the vertical FOV on
+ * narrow screens, capped so it never fisheyes.
+ */
+const DESIGN_FOV = 58;
+const DESIGN_ASPECT = 16 / 9;
+const MAX_FOV = 88;
+const REF_H_FOV = 2 * Math.atan(Math.tan((DESIGN_FOV * Math.PI) / 360) * DESIGN_ASPECT);
+
+function fovForAspect(aspect: number): number {
+  if (aspect >= DESIGN_ASPECT) return DESIGN_FOV;
+  const vFov = (2 * Math.atan(Math.tan(REF_H_FOV / 2) / aspect) * 180) / Math.PI;
+  return Math.min(vFov, MAX_FOV);
+}
+
 /** How far a pointer drag may nudge the view on top of the scroll position. */
 const DRAG_AZIMUTH_CLAMP = 0.55;
 const DRAG_PITCH_CLAMP = 0.28;
@@ -39,7 +57,7 @@ type Props = {
 };
 
 export function CameraRig({ progressRef, dragRef, focus }: Props) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
 
   const lookAt = useRef(new THREE.Vector3(0, EYE_HEIGHT, -LOOK_DISTANCE));
   const desiredPos = useRef(new THREE.Vector3().copy(CAMERA_ORIGIN));
@@ -49,6 +67,14 @@ export function CameraRig({ progressRef, dragRef, focus }: Props) {
     camera.position.copy(CAMERA_ORIGIN);
     camera.lookAt(lookAt.current);
   }, [camera]);
+
+  // Keep the horizontal field of view stable across aspect ratios, so a portrait
+  // phone frames the same slice of wall a desktop does instead of zooming in.
+  useEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || size.height === 0) return;
+    camera.fov = fovForAspect(size.width / size.height);
+    camera.updateProjectionMatrix();
+  }, [camera, size.width, size.height]);
 
   useFrame((_, delta) => {
     if (focus) {

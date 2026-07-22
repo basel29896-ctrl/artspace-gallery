@@ -35,8 +35,9 @@ export function ArtworkPanel({ artwork, onClose }: Props) {
       aria-labelledby="artwork-panel-title"
       className="artwork-popup pointer-events-auto absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-4xl
                  animate-[panel-in_320ms_cubic-bezier(0.16,1,0.3,1)] border-t border-stone-300/70
-                 bg-[#faf7f2]/95 p-6 shadow-[0_-8px_40px_rgba(40,30,20,0.18)] backdrop-blur-md
-                 sm:rounded-lg sm:border sm:px-8 sm:py-5"
+                 bg-[#faf7f2]/95 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]
+                 shadow-[0_-8px_40px_rgba(40,30,20,0.18)] backdrop-blur-md
+                 sm:rounded-lg sm:border sm:px-8 sm:py-5 sm:pb-5"
     >
       <button
         ref={closeRef}
