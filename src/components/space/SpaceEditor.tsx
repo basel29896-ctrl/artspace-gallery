@@ -6,6 +6,11 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Quad, Point } from '@/lib/space/homography';
 import { isConvexQuad, minEdgeLength, pointInQuad, quadCentroid } from '@/lib/space/homography';
+import {
+  calibrateFromReference,
+  resizeQuadToWidthCm,
+  type Calibration,
+} from '@/lib/space/calibration';
 import type { FrameStyle, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
 import { useArtworkComposite, useImage } from './useArtworkComposite';
 import {
@@ -54,7 +59,17 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
   });
   const [quad, setQuad] = useState<Quad | null>(null);
 
+  // True-to-scale placement.
+  const [calibration, setCalibration] = useState<Calibration | null>(null);
+  const [calibrating, setCalibrating] = useState(false);
+  const [refSeg, setRefSeg] = useState<[Point, Point] | null>(null);
+  const [refCm, setRefCm] = useState('');
+  const [trueSize, setTrueSize] = useState(false);
+  const [variantIndex, setVariantIndex] = useState(0);
+
   const active = artworks.find((a) => a.id === activeId) ?? artworks[0];
+  const sizes = useMemo(() => active?.sizeVariants ?? [], [active]);
+  const targetWidthCm = sizes[variantIndex]?.widthCm ?? active?.widthCm ?? null;
 
   const { image: roomImage } = useImage(roomImageUrl);
   // Supabase storage sends permissive CORS; without this the export canvas
@@ -147,6 +162,8 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
 
   const handleStageDown = useCallback(
     (e: KonvaEventObject<PointerEvent>) => {
+      // While calibrating, the canvas belongs to the reference handles.
+      if (calibrating) return;
       // A corner handle owns its own drag; do not start a move as well.
       if (e.target.getClassName?.() === 'Circle') return;
       const pos = e.target.getStage()?.getPointerPosition();
@@ -154,7 +171,7 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
       movePointer.current = pos;
       setCursor('grabbing');
     },
-    [safeQuad, setCursor],
+    [safeQuad, setCursor, calibrating],
   );
 
   const handleStageMove = useCallback(
@@ -178,7 +195,101 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
     setCursor('default');
   }, [setCursor]);
 
+  // On artwork switch, reset the chosen size to that piece's base (the variant
+  // matching its listed width, else the middle option).
+  useEffect(() => {
+    if (sizes.length === 0) {
+      setVariantIndex(0);
+      return;
+    }
+    const baseIdx = sizes.findIndex((s) => s.widthCm === active?.widthCm);
+    setVariantIndex(baseIdx >= 0 ? baseIdx : Math.floor(sizes.length / 2));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key on artwork identity only
+  }, [activeId]);
+
+  // Rescale the quad so the artwork sits at `targetWidthCm` on the wall, keeping
+  // its centre and perspective. No-op without a calibration.
+  const applyTrueSize = useCallback(
+    (widthCm: number | null) => {
+      if (!calibration || !widthCm) return;
+      setQuad((cur) => (cur ? resizeQuadToWidthCm(cur, widthCm, calibration) : cur));
+    },
+    [calibration],
+  );
+
+  const startCalibration = useCallback(() => {
+    // Seed a horizontal reference across the middle third of the photo.
+    const y = stageSize.height * 0.62;
+    const x0 = stageSize.width * 0.34;
+    const x1 = stageSize.width * 0.66;
+    setRefSeg([
+      { x: x0, y },
+      { x: x1, y },
+    ]);
+    setRefCm('');
+    setCalibrating(true);
+  }, [stageSize.width, stageSize.height]);
+
+  const cancelCalibration = useCallback(() => {
+    setCalibrating(false);
+    setRefSeg(null);
+  }, []);
+
+  const applyCalibration = useCallback(() => {
+    const cm = Number(refCm);
+    if (!refSeg || !artworkImage || !(cm > 0)) return;
+    const result = calibrateFromReference({
+      quad: safeQuad,
+      refA: refSeg[0],
+      refB: refSeg[1],
+      refCm: cm,
+      aspect: artworkImage.width / artworkImage.height,
+    });
+    if (!result) return;
+    setCalibration(result);
+    setCalibrating(false);
+    setTrueSize(true);
+    // Snap the artwork to its true size immediately.
+    if (targetWidthCm) {
+      setQuad((cur) => (cur ? resizeQuadToWidthCm(cur, targetWidthCm, result) : cur));
+    }
+  }, [refCm, refSeg, artworkImage, safeQuad, targetWidthCm]);
+
+  const handleTrueSizeChange = useCallback(
+    (next: boolean) => {
+      setTrueSize(next);
+      if (next) applyTrueSize(targetWidthCm);
+    },
+    [applyTrueSize, targetWidthCm],
+  );
+
+  const handleSelectVariant = useCallback(
+    (index: number) => {
+      setVariantIndex(index);
+      if (trueSize) applyTrueSize(sizes[index]?.widthCm ?? null);
+    },
+    [trueSize, applyTrueSize, sizes],
+  );
+
+  const moveRefPoint = useCallback(
+    (index: number, next: Point) => {
+      setRefSeg((cur) => {
+        if (!cur) return cur;
+        const clamped = {
+          x: Math.min(Math.max(next.x, 0), stageSize.width),
+          y: Math.min(Math.max(next.y, 0), stageSize.height),
+        };
+        return index === 0 ? [clamped, cur[1]] : [cur[0], clamped];
+      });
+    },
+    [stageSize.width, stageSize.height],
+  );
+
   const flatPoints = useMemo(() => safeQuad.flatMap((p) => [p.x, p.y]), [safeQuad]);
+  const refPoints = useMemo(
+    () => (refSeg ? [refSeg[0].x, refSeg[0].y, refSeg[1].x, refSeg[1].y] : []),
+    [refSeg],
+  );
 
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -266,32 +377,62 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
                   listening={false}
                 />
 
-                {safeQuad.map((corner, index) => (
-                  <Circle
-                    key={index}
-                    x={corner.x}
-                    y={corner.y}
-                    radius={HANDLE_RADIUS}
-                    fill="#ffffff"
-                    stroke="#1c1917"
-                    strokeWidth={1.5}
-                    draggable
-                    onDragMove={(e) => moveCorner(index, { x: e.target.x(), y: e.target.y() })}
-                    onDragEnd={(e) => {
-                      // Snap the handle back if the drag was rejected as invalid.
-                      e.target.position({ x: safeQuad[index].x, y: safeQuad[index].y });
-                    }}
-                    onMouseEnter={(e) => {
-                      const container = e.target.getStage()?.container();
-                      if (container) container.style.cursor = 'grab';
-                    }}
-                    onMouseLeave={(e) => {
-                      const container = e.target.getStage()?.container();
-                      if (container) container.style.cursor = 'default';
-                    }}
-                  />
-                ))}
+                {!calibrating &&
+                  safeQuad.map((corner, index) => (
+                    <Circle
+                      key={index}
+                      x={corner.x}
+                      y={corner.y}
+                      radius={HANDLE_RADIUS}
+                      fill="#ffffff"
+                      stroke="#1c1917"
+                      strokeWidth={1.5}
+                      draggable
+                      onDragMove={(e) => moveCorner(index, { x: e.target.x(), y: e.target.y() })}
+                      onDragEnd={(e) => {
+                        // Snap the handle back if the drag was rejected as invalid.
+                        e.target.position({ x: safeQuad[index].x, y: safeQuad[index].y });
+                        // In true-size mode, a perspective change must not change
+                        // the artwork's physical size — relock it.
+                        if (trueSize) applyTrueSize(targetWidthCm);
+                      }}
+                      onMouseEnter={(e) => {
+                        const container = e.target.getStage()?.container();
+                        if (container) container.style.cursor = 'grab';
+                      }}
+                      onMouseLeave={(e) => {
+                        const container = e.target.getStage()?.container();
+                        if (container) container.style.cursor = 'default';
+                      }}
+                    />
+                  ))}
               </Layer>
+
+              {/* Calibration: a reference segment on the wall plane. */}
+              {calibrating && refSeg ? (
+                <Layer>
+                  <Line
+                    points={refPoints}
+                    stroke="#f59e0b"
+                    strokeWidth={2.5}
+                    dash={[8, 5]}
+                    listening={false}
+                  />
+                  {refSeg.map((p, index) => (
+                    <Circle
+                      key={index}
+                      x={p.x}
+                      y={p.y}
+                      radius={HANDLE_RADIUS}
+                      fill="#f59e0b"
+                      stroke="#1c1917"
+                      strokeWidth={1.5}
+                      draggable
+                      onDragMove={(e) => moveRefPoint(index, { x: e.target.x(), y: e.target.y() })}
+                    />
+                  ))}
+                </Layer>
+              ) : null}
             </Stage>
           ) : (
             <div className="flex h-96 items-center justify-center text-sm text-stone-500">
@@ -301,7 +442,9 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         </div>
 
         <p className="mt-3 text-xs text-stone-500">
-          Drag the artwork to move it. Drag any corner to match the angle of your wall.
+          {calibrating
+            ? 'Drag the amber endpoints across something of a known size on the wall, then enter its length.'
+            : 'Drag the artwork to move it. Drag any corner to match the angle of your wall.'}
         </p>
       </div>
 
@@ -319,6 +462,18 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         exportError={exportError}
         onReset={onReset}
         activeArtwork={active}
+        sizes={sizes}
+        variantIndex={variantIndex}
+        onSelectVariant={handleSelectVariant}
+        calibrated={calibration !== null}
+        calibrating={calibrating}
+        onStartCalibration={startCalibration}
+        onApplyCalibration={applyCalibration}
+        onCancelCalibration={cancelCalibration}
+        refCm={refCm}
+        onRefCmChange={setRefCm}
+        trueSize={trueSize}
+        onTrueSizeChange={handleTrueSizeChange}
       />
     </div>
   );

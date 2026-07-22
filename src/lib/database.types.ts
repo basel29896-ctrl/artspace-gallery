@@ -21,6 +21,13 @@ export type UserRow = Timestamped & {
   plan: PlanTier;
 };
 
+/** One offered size of an artwork. Stored as an element of `size_variants`. */
+export type SizeVariant = {
+  width_cm: number;
+  height_cm: number;
+  price_range?: string | null;
+};
+
 export type ArtworkRow = Timestamped & {
   id: string;
   artist_id: string;
@@ -28,6 +35,9 @@ export type ArtworkRow = Timestamped & {
   description: string | null;
   medium: string | null;
   dimensions: string | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  size_variants: SizeVariant[];
   year: number | null;
   price_range: string | null;
   original_url: string;
@@ -126,9 +136,10 @@ export type Database = {
       users: Table<UserRow, Insertable<Omit<UserRow, 'created_at'>> & { role?: UserRole; plan?: PlanTier }>;
       artworks: Table<
         ArtworkRow,
-        Insertable<Omit<ArtworkRow, 'created_at' | 'likes_count' | 'views_count'>> & {
+        Insertable<Omit<ArtworkRow, 'created_at' | 'likes_count' | 'views_count' | 'size_variants'>> & {
           likes_count?: number;
           views_count?: number;
+          size_variants?: SizeVariant[];
         },
         Partial<ArtworkRow>,
         ArtworkRelationships

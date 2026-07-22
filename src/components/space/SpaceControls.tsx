@@ -1,7 +1,7 @@
 'use client';
 
 import type { FrameStyle, MatColor, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
-import type { SpaceArtwork } from '@/lib/artworks/queries';
+import type { SpaceArtwork, ArtworkSize } from '@/lib/artworks/queries';
 import { ContactArtistDialog } from '@/components/artwork/ContactArtistDialog';
 
 const FRAME_OPTIONS: { value: FrameStyle; label: string; swatch: string }[] = [
@@ -36,6 +36,19 @@ type Props = {
   onDownload: () => void;
   exportError?: string | null;
   onReset: () => void;
+  // True-to-scale placement.
+  sizes: ArtworkSize[];
+  variantIndex: number;
+  onSelectVariant: (index: number) => void;
+  calibrated: boolean;
+  calibrating: boolean;
+  onStartCalibration: () => void;
+  onApplyCalibration: () => void;
+  onCancelCalibration: () => void;
+  refCm: string;
+  onRefCmChange: (value: string) => void;
+  trueSize: boolean;
+  onTrueSizeChange: (value: boolean) => void;
 };
 
 export function SpaceControls({
@@ -52,6 +65,18 @@ export function SpaceControls({
   onDownload,
   exportError,
   onReset,
+  sizes,
+  variantIndex,
+  onSelectVariant,
+  calibrated,
+  calibrating,
+  onStartCalibration,
+  onApplyCalibration,
+  onCancelCalibration,
+  refCm,
+  onRefCmChange,
+  trueSize,
+  onTrueSizeChange,
 }: Props) {
   return (
     <aside className="space-y-8">
@@ -86,6 +111,108 @@ export function SpaceControls({
           <p className="mt-2 truncate font-serif text-sm text-stone-800">{activeArtwork.title}</p>
         ) : null}
       </section>
+
+      <section>
+        <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">True scale</h2>
+
+        {calibrating ? (
+          <div className="mt-3 space-y-3">
+            <label className="block text-sm text-stone-700">
+              Length of the reference on the wall
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  inputMode="decimal"
+                  value={refCm}
+                  onChange={(e) => onRefCmChange(e.target.value)}
+                  placeholder="e.g. 90"
+                  className="w-full rounded-sm border border-stone-300 px-3 py-2 text-sm focus:border-stone-800 focus:outline-none"
+                />
+                <span className="text-sm text-stone-500">cm</span>
+              </div>
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onApplyCalibration}
+                disabled={!(Number(refCm) > 0)}
+                className="flex-1 rounded-sm bg-stone-900 px-4 py-2 text-sm font-medium text-stone-50 transition hover:bg-stone-700 disabled:opacity-40"
+              >
+                Apply scale
+              </button>
+              <button
+                type="button"
+                onClick={onCancelCalibration}
+                className="rounded-sm border border-stone-300 px-4 py-2 text-sm text-stone-700 transition hover:border-stone-800"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <p className="text-sm leading-relaxed text-stone-600">
+              {calibrated
+                ? 'Scale is set. The artwork is shown at its real size on your wall.'
+                : 'Measure a known object on the wall (a door, a shelf) to place artwork at true size.'}
+            </p>
+
+            {calibrated ? (
+              <label className="flex items-center justify-between text-sm text-stone-700">
+                <span>True size</span>
+                <input
+                  type="checkbox"
+                  checked={trueSize}
+                  onChange={(e) => onTrueSizeChange(e.target.checked)}
+                  className="h-4 w-4 accent-stone-900"
+                />
+              </label>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={onStartCalibration}
+              className="w-full rounded-sm border border-stone-300 px-4 py-2 text-sm text-stone-700 transition hover:border-stone-800"
+            >
+              {calibrated ? 'Re-measure' : 'Set scale'}
+            </button>
+          </div>
+        )}
+      </section>
+
+      {sizes.length > 0 ? (
+        <section>
+          <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Size</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {sizes.map((size, index) => (
+              <button
+                key={`${size.widthCm}x${size.heightCm}`}
+                type="button"
+                onClick={() => onSelectVariant(index)}
+                aria-pressed={index === variantIndex}
+                className={`rounded-sm border px-3 py-2 text-left text-sm transition ${
+                  index === variantIndex
+                    ? 'border-stone-900 text-stone-900'
+                    : 'border-stone-200 text-stone-500 hover:border-stone-400'
+                }`}
+              >
+                <span className="block tabular-nums">
+                  {size.widthCm} × {size.heightCm} cm
+                </span>
+                {size.priceRange ? (
+                  <span className="mt-0.5 block text-[11px] text-stone-400">{size.priceRange}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          {!calibrated ? (
+            <p className="mt-2 text-[11px] text-stone-400">
+              Set the scale above to compare these at true size.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section>
         <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Frame</h2>

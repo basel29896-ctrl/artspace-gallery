@@ -107,12 +107,34 @@ export async function getArtwork(id: string) {
 
 export type ArtworkDetail = NonNullable<Awaited<ReturnType<typeof getArtwork>>>;
 
+export type ArtworkSize = { widthCm: number; heightCm: number; priceRange: string | null };
+
 export type SpaceArtwork = {
   id: string;
   title: string;
   displayUrl: string;
   artistName: string | null;
+  /** Listed physical size, when known. Drives true-to-scale placement. */
+  widthCm: number | null;
+  heightCm: number | null;
+  /** Offered sizes for the size switcher. Includes the base size when known. */
+  sizeVariants: ArtworkSize[];
 };
+
+/** Coerces the raw JSONB `size_variants` into validated, positive sizes. */
+export function normalizeSizeVariants(raw: unknown): ArtworkSize[] {
+  if (!Array.isArray(raw)) return [];
+  const sizes: ArtworkSize[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const w = Number((item as Record<string, unknown>).width_cm);
+    const h = Number((item as Record<string, unknown>).height_cm);
+    if (!(w > 0) || !(h > 0)) continue;
+    const price = (item as Record<string, unknown>).price_range;
+    sizes.push({ widthCm: w, heightCm: h, priceRange: typeof price === 'string' ? price : null });
+  }
+  return sizes;
+}
 
 /**
  * The chosen artwork plus up to four more by the same artist, for the
@@ -125,7 +147,9 @@ export async function getSpaceArtworks(artworkId: string): Promise<SpaceArtwork[
 
   const { data: current } = await supabase
     .from('artworks')
-    .select('id, title, display_url, artist_id, users!artworks_artist_id_fkey (name, username)')
+    .select(
+      'id, title, display_url, artist_id, width_cm, height_cm, size_variants, users!artworks_artist_id_fkey (name, username)',
+    )
     .eq('id', artworkId)
     .maybeSingle();
 
@@ -136,26 +160,30 @@ export async function getSpaceArtworks(artworkId: string): Promise<SpaceArtwork[
 
   const { data: siblings } = await supabase
     .from('artworks')
-    .select('id, title, display_url')
+    .select('id, title, display_url, width_cm, height_cm, size_variants')
     .eq('artist_id', current.artist_id)
     .neq('id', artworkId)
     .order('likes_count', { ascending: false })
     .limit(4);
 
-  return [
-    {
-      id: current.id,
-      title: current.title,
-      displayUrl: displayPublicUrl(current.display_url),
-      artistName,
-    },
-    ...(siblings ?? []).map((row) => ({
-      id: row.id,
-      title: row.title,
-      displayUrl: displayPublicUrl(row.display_url),
-      artistName,
-    })),
-  ];
+  const toSpace = (row: {
+    id: string;
+    title: string;
+    display_url: string;
+    width_cm: number | null;
+    height_cm: number | null;
+    size_variants: unknown;
+  }): SpaceArtwork => ({
+    id: row.id,
+    title: row.title,
+    displayUrl: displayPublicUrl(row.display_url),
+    artistName,
+    widthCm: row.width_cm,
+    heightCm: row.height_cm,
+    sizeVariants: normalizeSizeVariants(row.size_variants),
+  });
+
+  return [toSpace(current), ...(siblings ?? []).map(toSpace)];
 }
 
 /**

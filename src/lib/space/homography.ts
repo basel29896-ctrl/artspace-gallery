@@ -77,6 +77,37 @@ export function homographyFromUnitSquare(quad: Quad): Homography | null {
   return [...solution, 1];
 }
 
+/** The unit square, in the canonical corner order. */
+export const UNIT_QUAD: Quad = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+];
+
+/**
+ * Homography mapping one arbitrary quad onto another (4 point correspondences).
+ * Passing `UNIT_QUAD` as `dst` gives the inverse of `homographyFromUnitSquare` —
+ * a screen → unit-square map used to read a point's position within the plane.
+ */
+export function homographyBetween(src: Quad, dst: Quad): Homography | null {
+  const A: number[][] = [];
+  const b: number[] = [];
+
+  for (let i = 0; i < 4; i += 1) {
+    const { x: u, y: v } = src[i];
+    const { x, y } = dst[i];
+    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]);
+    b.push(x);
+    A.push([0, 0, 0, u, v, 1, -u * y, -v * y]);
+    b.push(y);
+  }
+
+  const solution = solve(A, b);
+  if (!solution || solution.some((value) => !Number.isFinite(value))) return null;
+  return [...solution, 1];
+}
+
 /** Maps a point in unit-square space through the homography. */
 export function project(h: Homography, u: number, v: number): Point {
   const denominator = h[6] * u + h[7] * v + 1;
@@ -151,4 +182,20 @@ export function quadCentroid(quad: Quad): Point {
     x: (quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4,
     y: (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4,
   };
+}
+
+/** Scales a quad about its centroid, preserving its perspective shape. */
+export function scaleQuadAboutCentroid(quad: Quad, factor: number): Quad {
+  const c = quadCentroid(quad);
+  return quad.map((p) => ({
+    x: c.x + (p.x - c.x) * factor,
+    y: c.y + (p.y - c.y) * factor,
+  })) as Quad;
+}
+
+/** Mean of the two horizontal edges (top, bottom) in screen pixels. */
+export function quadWidthPx(quad: Quad): number {
+  const top = Math.hypot(quad[1].x - quad[0].x, quad[1].y - quad[0].y);
+  const bottom = Math.hypot(quad[2].x - quad[3].x, quad[2].y - quad[3].y);
+  return (top + bottom) / 2;
 }

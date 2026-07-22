@@ -1,5 +1,25 @@
-import type { GalleryArtwork, SpaceArtwork, ArtistProfile } from './queries';
+import type { GalleryArtwork, SpaceArtwork, ArtistProfile, ArtworkSize } from './queries';
 import { IS_STATIC_DEMO, BASE_PATH } from '@/lib/demo';
+
+/** Parses "150 × 120 cm" → { widthCm, heightCm }; null when unrecognised. */
+function parseDimensions(text: string): { widthCm: number; heightCm: number } | null {
+  const match = text.match(/([0-9]+(?:\.[0-9]+)?)\s*[×xX]\s*([0-9]+(?:\.[0-9]+)?)/);
+  if (!match) return null;
+  return { widthCm: Number(match[1]), heightCm: Number(match[2]) };
+}
+
+/**
+ * Fixtures have one listed size; fabricate a couple of extra variants around it
+ * (preserving aspect) so the size switcher has something to compare offline.
+ */
+function buildVariants(base: { widthCm: number; heightCm: number }, price: string): ArtworkSize[] {
+  const round = (n: number) => Math.round(n);
+  return [
+    { widthCm: round(base.widthCm * 0.6), heightCm: round(base.heightCm * 0.6), priceRange: null },
+    { widthCm: round(base.widthCm), heightCm: round(base.heightCm), priceRange: price },
+    { widthCm: round(base.widthCm * 1.4), heightCm: round(base.heightCm * 1.4), priceRange: null },
+  ];
+}
 
 /**
  * Local sample data for verifying the UI without a Supabase project.
@@ -161,12 +181,18 @@ export function fixtureSpaceArtworks(id: string): SpaceArtwork[] {
   const artist = artistByUsername(seed.artist);
   const siblings = SEEDS.filter((s) => s.artist === seed.artist && s.id !== seed.id).slice(0, 4);
 
-  return [seed, ...siblings].map((s) => ({
-    id: s.id,
-    title: s.title,
-    displayUrl: `${BASE_PATH}/fixtures/${s.id}.webp`,
-    artistName: artist.name,
-  }));
+  return [seed, ...siblings].map((s) => {
+    const base = parseDimensions(s.dimensions);
+    return {
+      id: s.id,
+      title: s.title,
+      displayUrl: `${BASE_PATH}/fixtures/${s.id}.webp`,
+      artistName: artist.name,
+      widthCm: base?.widthCm ?? null,
+      heightCm: base?.heightCm ?? null,
+      sizeVariants: base ? buildVariants(base, s.price) : [],
+    };
+  });
 }
 
 export function fixtureArtistList() {
