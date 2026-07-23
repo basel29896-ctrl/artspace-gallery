@@ -29,14 +29,16 @@ export type FramePct = {
  */
 export const HERO_FRAMES: FramePct[] = [
   // Left wall (recedes right → right edge shorter).
-  { id: 'L1', corners: [[4.0, 32.0], [13.4, 36.2], [13.6, 63.5], [3.9, 67.6]] },
-  { id: 'L2', corners: [[16.4, 37.0], [22.2, 39.4], [22.2, 62.0], [16.2, 64.4]] },
+  { id: 'L1', corners: [[5.05, 33.77], [12.04, 36.85], [12.14, 62.38], [5.16, 64.44]] },
+  { id: 'L2', corners: [[17.39, 39.32], [21.31, 40.33], [21.05, 59.02], [17.19, 60.96]] },
   // Back wall (straight-on).
-  { id: 'B3', corners: [[39.5, 42.2], [47.3, 42.4], [47.3, 60.2], [39.5, 60.4]] },
-  { id: 'B4', corners: [[54.0, 42.6], [61.2, 42.4], [61.2, 60.2], [54.0, 60.4]] },
+  { id: 'B3', corners: [[38.56, 41.83], [46.31, 42.31], [46.25, 58.53], [39.03, 58.17]] },
+  { id: 'B4', corners: [[53.79, 41.86], [61.2, 42.4], [61.3, 58.53], [53.79, 58.17]] },
   // Right wall (recedes left → left edge shorter).
-  { id: 'R5', corners: [[78.1, 39.8], [82.6, 37.4], [82.7, 64.4], [78.1, 62.0]] },
-  { id: 'R6', corners: [[86.6, 36.2], [95.9, 32.0], [96.1, 63.5], [86.6, 67.8]] },
+  { id: 'R5', corners: [[78.62, 40.54], [82.55, 39.07], [82.7, 64.4], [78.1, 62.0]] },
+  // R6: top corners from calibration; bottom pulled back onto the frame (the
+  // calibrated bottom-left had sagged below it).
+  { id: 'R6', corners: [[88.27, 36.66], [94.7, 34.32], [94.8, 61.4], [88.2, 63.6]] },
 ];
 
 /** Frame corners as reference-pixel Quad (order TL,TR,BR,BL). */
