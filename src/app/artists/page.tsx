@@ -28,7 +28,7 @@ export default async function ArtistsPage() {
         <div className="py-24 text-center">
           <p className="text-stone-500">No artists have published work yet.</p>
           <Link
-            href="/login?mode=signup"
+            href="/request-access"
             className="mt-6 inline-block rounded-sm bg-stone-900 px-6 py-2.5 text-sm text-stone-50 hover:bg-stone-700"
           >
             Be the first

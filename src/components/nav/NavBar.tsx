@@ -112,7 +112,7 @@ export function NavBar({ user }: { user: NavUser }) {
                 Sign in
               </Link>
               <Link
-                href="/login?mode=signup"
+                href="/request-access"
                 className="rounded-sm bg-stone-900 px-4 py-1.5 text-sm text-stone-50 transition hover:bg-stone-700"
               >
                 Join
@@ -171,7 +171,7 @@ export function NavBar({ user }: { user: NavUser }) {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/login?mode=signup" className="block text-sm text-stone-800">
+                  <Link href="/request-access" className="block text-sm text-stone-800">
                     Join
                   </Link>
                 </li>

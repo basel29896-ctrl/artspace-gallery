@@ -49,7 +49,7 @@ export default async function LoginPage({
       ) : null}
 
       <div className="mt-8">
-        <AuthForm next={next} initialMode={searchParams.mode === 'signup' ? 'signup' : 'signin'} />
+        <AuthForm next={next} />
       </div>
     </main>
   );

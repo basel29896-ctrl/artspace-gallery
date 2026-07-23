@@ -20,7 +20,7 @@ export function SiteFooter() {
             Artists
           </Link>
           {IS_STATIC_DEMO ? null : (
-            <Link href="/login?mode=signup" className="transition hover:text-stone-900">
+            <Link href="/request-access" className="transition hover:text-stone-900">
               Sell your work
             </Link>
           )}
