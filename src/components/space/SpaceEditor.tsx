@@ -20,7 +20,8 @@ import {
   downloadCanvasAsJpeg,
   renderExportComposite,
 } from '@/lib/space/exportPreview';
-import type { SpaceArtwork } from '@/lib/artworks/queries';
+import type { ReactNode } from 'react';
+import type { SpaceArtwork } from '@/lib/space/types';
 import { SpaceControls } from './SpaceControls';
 
 const HANDLE_RADIUS = 9;
@@ -57,9 +58,16 @@ type Props = {
   artworks: SpaceArtwork[];
   initialArtworkId: string;
   onReset: () => void;
+  renderInquiry?: (artwork: SpaceArtwork) => ReactNode;
 };
 
-export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset }: Props) {
+export function SpaceEditor({
+  roomImageUrl,
+  artworks,
+  initialArtworkId,
+  onReset,
+  renderInquiry,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
 
@@ -604,6 +612,7 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         onDownload={handleDownload}
         exportError={exportError}
         onReset={onReset}
+        renderInquiry={renderInquiry}
       />
     </div>
   );

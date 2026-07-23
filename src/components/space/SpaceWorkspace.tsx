@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
-import type { SpaceArtwork } from '@/lib/artworks/queries';
+import type { SpaceArtwork } from '@/lib/space/types';
 
 // Konva touches `window` at module scope, so it can never be server-rendered.
 const SpaceEditor = dynamic(
@@ -20,9 +20,15 @@ const SpaceEditor = dynamic(
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/avif';
 const MAX_BYTES = 20 * 1024 * 1024;
 
-type Props = { artworks: SpaceArtwork[]; initialArtworkId: string };
+type Props = {
+  artworks: SpaceArtwork[];
+  initialArtworkId: string;
+  /** Inquiry UI, injected by the caller so this core carries no backend
+   *  coupling. The app supplies its Supabase dialog; the embed SDK an event. */
+  renderInquiry?: (artwork: SpaceArtwork) => ReactNode;
+};
 
-export function SpaceWorkspace({ artworks, initialArtworkId }: Props) {
+export function SpaceWorkspace({ artworks, initialArtworkId, renderInquiry }: Props) {
   const [roomUrl, setRoomUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -69,6 +75,7 @@ export function SpaceWorkspace({ artworks, initialArtworkId }: Props) {
         artworks={artworks}
         initialArtworkId={initialArtworkId}
         onReset={reset}
+        renderInquiry={renderInquiry}
       />
     );
   }

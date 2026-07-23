@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getSpaceArtworks } from '@/lib/artworks/queries';
-import { SpaceWorkspace } from '@/components/space/SpaceWorkspace';
+import { AppSpaceWorkspace } from '@/components/space/AppSpaceWorkspace';
 
 export const revalidate = 120;
 
@@ -50,7 +50,7 @@ export default async function SpacePage({ params }: Params) {
         </Link>
       </header>
 
-      <SpaceWorkspace artworks={artworks} initialArtworkId={primary.id} />
+      <AppSpaceWorkspace artworks={artworks} initialArtworkId={primary.id} />
     </main>
   );
 }

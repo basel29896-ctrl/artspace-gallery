@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { publicEnv } from '@/lib/env';
+import type { SpaceArtwork } from '@/lib/space/types';
+import { normalizeSizeVariants } from '@/lib/space/types';
 import {
   fixturesEnabled,
   fixtureArtistList,
@@ -107,34 +109,11 @@ export async function getArtwork(id: string) {
 
 export type ArtworkDetail = NonNullable<Awaited<ReturnType<typeof getArtwork>>>;
 
-export type ArtworkSize = { widthCm: number; heightCm: number; priceRange: string | null };
-
-export type SpaceArtwork = {
-  id: string;
-  title: string;
-  displayUrl: string;
-  artistName: string | null;
-  /** Listed physical size, when known. Drives true-to-scale placement. */
-  widthCm: number | null;
-  heightCm: number | null;
-  /** Offered sizes for the size switcher. Includes the base size when known. */
-  sizeVariants: ArtworkSize[];
-};
-
-/** Coerces the raw JSONB `size_variants` into validated, positive sizes. */
-export function normalizeSizeVariants(raw: unknown): ArtworkSize[] {
-  if (!Array.isArray(raw)) return [];
-  const sizes: ArtworkSize[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const w = Number((item as Record<string, unknown>).width_cm);
-    const h = Number((item as Record<string, unknown>).height_cm);
-    if (!(w > 0) || !(h > 0)) continue;
-    const price = (item as Record<string, unknown>).price_range;
-    sizes.push({ widthCm: w, heightCm: h, priceRange: typeof price === 'string' ? price : null });
-  }
-  return sizes;
-}
+// Space editor data types now live in the framework-agnostic `lib/space/types`
+// so the embeddable SDK can reuse them without Supabase. Re-exported here for
+// existing callers.
+export type { ArtworkSize, SpaceArtwork } from '@/lib/space/types';
+export { normalizeSizeVariants } from '@/lib/space/types';
 
 /**
  * The chosen artwork plus up to four more by the same artist, for the

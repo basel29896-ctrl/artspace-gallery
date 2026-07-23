@@ -7,8 +7,8 @@ import {
   type MatSettings,
   type RealismSettings,
 } from '@/lib/space/renderPerspective';
-import type { SpaceArtwork, ArtworkSize } from '@/lib/artworks/queries';
-import { ContactArtistDialog } from '@/components/artwork/ContactArtistDialog';
+import type { ReactNode } from 'react';
+import type { SpaceArtwork, ArtworkSize } from '@/lib/space/types';
 
 const FRAME_OPTIONS: { value: FrameStyle; label: string; swatch: string }[] = [
   { value: 'none', label: 'None', swatch: 'linear-gradient(135deg,#e7e5e4,#d6d3d1)' },
@@ -75,6 +75,8 @@ type Props = {
   onDownload: () => void;
   exportError?: string | null;
   onReset: () => void;
+  /** Inquiry UI is injected so the editor core carries no backend coupling. */
+  renderInquiry?: (artwork: SpaceArtwork) => ReactNode;
 };
 
 export function SpaceControls(props: Props) {
@@ -111,6 +113,7 @@ export function SpaceControls(props: Props) {
     onDownload,
     exportError,
     onReset,
+    renderInquiry,
   } = props;
 
   const hasSelection = selectedId !== null;
@@ -457,12 +460,7 @@ export function SpaceControls(props: Props) {
             {exportError}
           </p>
         ) : null}
-        {selectedArtwork ? (
-          <ContactArtistDialog
-            artworkId={selectedArtwork.id}
-            artistName={selectedArtwork.artistName ?? 'the artist'}
-          />
-        ) : null}
+        {selectedArtwork && renderInquiry ? renderInquiry(selectedArtwork) : null}
         <button
           type="button"
           onClick={onReset}
