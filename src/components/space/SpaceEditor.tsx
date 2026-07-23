@@ -497,8 +497,10 @@ export function SpaceEditor({
   });
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      {/* Preview stays pinned while the controls column scrolls past it, so the
+          artwork is always visible while editing. */}
+      <div className="lg:sticky lg:top-6 lg:self-start">
         <div
           ref={containerRef}
           className="overflow-hidden bg-stone-900/5 ring-1 ring-stone-900/10"
