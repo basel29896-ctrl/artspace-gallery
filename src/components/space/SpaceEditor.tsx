@@ -19,6 +19,7 @@ import {
 } from '@/lib/space/calibration';
 import { snapPlacement } from '@/lib/space/alignment';
 import type { FrameStyle, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
+import { framedQuad } from '@/lib/space/renderPerspective';
 import { useImage } from './useArtworkComposite';
 import { PlacementImage, type PlacementComposite } from './PlacementImage';
 import {
@@ -444,7 +445,13 @@ export function SpaceEditor({
     const exportPlacements = placements
       .map((p) => {
         const composite = compositeRef.current.get(p.id);
-        return composite ? { framedArtwork: composite.framed, quad: p.quad } : null;
+        if (!composite) return null;
+        // p.quad is the artwork opening; warp the framed bitmap into the quad
+        // expanded outward by the frame/mat border (keeps the opening true-scale).
+        const outer =
+          framedQuad(p.quad, composite.imageWidth, composite.imageHeight, p.frame, p.mat) ??
+          p.quad;
+        return { framedArtwork: composite.framed, quad: outer };
       })
       .filter((x): x is { framedArtwork: HTMLCanvasElement; quad: Quad } => x !== null);
 

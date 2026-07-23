@@ -5,6 +5,7 @@ import { isConvexQuad, minEdgeLength, type Quad } from '@/lib/space/homography';
 import {
   composeFramedArtwork,
   drawPerspective,
+  framedQuad,
   type FrameStyle,
   type MatSettings,
   type RealismSettings,
@@ -100,28 +101,34 @@ export function useArtworkComposite({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (framed && quadValid) {
+    if (framed && quadValid && artwork) {
+      // The caller's `quad` is the artwork opening (true scale). The frame/mat
+      // sit outside it, so warp the framed bitmap into the expanded quad; the
+      // opening stays fixed and the border grows outward.
+      const outer =
+        framedQuad(quad, artwork.width, artwork.height, frame, mat) ?? quad;
+
       if (realism.shadow) {
-        // Shadow is painted as a blurred fill of the quad itself. Applying
-        // ctx.shadow* to the warp would render a shadow per triangle — hundreds
-        // of overlapping shadows instead of one.
+        // Shadow is painted as a blurred fill of the (outer) quad itself.
+        // Applying ctx.shadow* to the warp would render a shadow per triangle —
+        // hundreds of overlapping shadows instead of one.
         ctx.save();
         ctx.globalAlpha = 0.42;
         ctx.filter = 'blur(14px)';
         ctx.fillStyle = 'rgba(20,15,10,1)';
         ctx.beginPath();
-        ctx.moveTo(quad[0].x + 10, quad[0].y + 14);
-        for (let i = 1; i < 4; i += 1) ctx.lineTo(quad[i].x + 10, quad[i].y + 14);
+        ctx.moveTo(outer[0].x + 10, outer[0].y + 14);
+        for (let i = 1; i < 4; i += 1) ctx.lineTo(outer[i].x + 10, outer[i].y + 14);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
       }
 
-      drawPerspective(ctx, framed, framed.width, framed.height, quad);
+      drawPerspective(ctx, framed, framed.width, framed.height, outer);
     }
 
     setVersion((v) => v + 1);
-  }, [framed, quad, quadValid, realism.shadow, stageWidth, stageHeight]);
+  }, [framed, quad, quadValid, realism.shadow, stageWidth, stageHeight, artwork, frame, mat]);
 
   return { compositeCanvas: canvasRef.current, framed, version, quadValid };
 }

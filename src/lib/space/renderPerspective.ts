@@ -1,4 +1,5 @@
 import { homographyFromUnitSquare, project, type Quad } from './homography';
+// `project` / `homographyFromUnitSquare` are reused by `framedQuad` below.
 
 /**
  * Canvas 2D can only apply affine transforms, so a projective warp is drawn by
@@ -371,6 +372,85 @@ function paintMatBevel(
 }
 
 /**
+ * Geometry of the framed composite in artwork-pixel units. The frame and mat are
+ * added OUTSIDE the artwork: the opening stays exactly `imageWidth × imageHeight`
+ * and the border grows the overall canvas. `artX`/`artY` are the opening's offset
+ * inside that canvas.
+ */
+export type FrameLayout = {
+  frameInset: number;
+  matInset: number;
+  bottomExtra: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  artX: number;
+  artY: number;
+};
+
+export function frameLayout(
+  imageWidth: number,
+  imageHeight: number,
+  frame: FrameStyle,
+  mat: MatSettings,
+): FrameLayout {
+  const shortEdge = Math.min(imageWidth, imageHeight);
+  const spec = FRAMES[frame];
+  const frameInset = spec ? shortEdge * spec.ratio : 0;
+  const matInset = mat.width > 0 ? shortEdge * mat.width : 0;
+  // Gallery bottom-weighting: 20% extra mat below the opening only.
+  const bottomExtra = matInset > 0 && mat.bottomWeighted ? matInset * 0.2 : 0;
+  const border = frameInset + matInset;
+  return {
+    frameInset,
+    matInset,
+    bottomExtra,
+    canvasWidth: Math.round(imageWidth + border * 2),
+    canvasHeight: Math.round(imageHeight + border * 2 + bottomExtra),
+    artX: border,
+    artY: border,
+  };
+}
+
+/**
+ * The placement quad given by the caller is the ARTWORK OPENING (the true-scale
+ * reference). The frame and mat sit outside it, so the framed bitmap must be
+ * warped into a larger quad extending beyond the opening by the border margins —
+ * in the same wall plane, so the extension stays perspective-correct.
+ *
+ * Returns null when the quad is degenerate.
+ */
+export function framedQuad(
+  quad: Quad,
+  imageWidth: number,
+  imageHeight: number,
+  frame: FrameStyle,
+  mat: MatSettings,
+): Quad | null {
+  const layout = frameLayout(imageWidth, imageHeight, frame, mat);
+  const border = layout.frameInset + layout.matInset;
+  if (border <= 0 && layout.bottomExtra <= 0) return quad;
+
+  const h = homographyFromUnitSquare(quad);
+  if (!h) return null;
+
+  // Opening occupies u,v ∈ [0,1]; the framed canvas spans beyond by the margins,
+  // expressed as fractions of the opening's own width/height.
+  const mu = border / imageWidth;
+  const mvTop = border / imageHeight;
+  const mvBot = (border + layout.bottomExtra) / imageHeight;
+
+  const corners: [number, number][] = [
+    [-mu, -mvTop],
+    [1 + mu, -mvTop],
+    [1 + mu, 1 + mvBot],
+    [-mu, 1 + mvBot],
+  ];
+  const out = corners.map(([u, v]) => project(h, u, v));
+  if (out.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
+  return [out[0], out[1], out[2], out[3]] as Quad;
+}
+
+/**
  * Composites artwork + optional mat + optional frame onto an offscreen canvas at
  * native resolution. Returned separately from the warp so the expensive part is
  * only redone when the artwork, frame, mat, or colour settings change — not on
@@ -386,16 +466,13 @@ export function composeFramedArtwork(
   mat: MatSettings,
   realism: RealismSettings,
 ): HTMLCanvasElement {
-  const shortEdge = Math.min(imageWidth, imageHeight);
+  const layout = frameLayout(imageWidth, imageHeight, frame, mat);
   const spec = FRAMES[frame];
-  const frameInset = spec ? shortEdge * spec.ratio : 0;
-  const matInset = mat.width > 0 ? shortEdge * mat.width : 0;
-  // Gallery bottom-weighting: 20% extra mat below the opening only.
-  const bottomExtra = matInset > 0 && mat.bottomWeighted ? matInset * 0.2 : 0;
+  const { frameInset, matInset } = layout;
 
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(imageWidth + (frameInset + matInset) * 2);
-  canvas.height = Math.round(imageHeight + (frameInset + matInset) * 2 + bottomExtra);
+  canvas.width = layout.canvasWidth;
+  canvas.height = layout.canvasHeight;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
