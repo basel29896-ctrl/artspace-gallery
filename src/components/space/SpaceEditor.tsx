@@ -5,7 +5,13 @@ import { Stage, Layer, Image as KonvaImage, Line, Circle } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Quad, Point } from '@/lib/space/homography';
-import { isConvexQuad, minEdgeLength, pointInQuad, quadCentroid } from '@/lib/space/homography';
+import {
+  isConvexQuad,
+  minEdgeLength,
+  pointInQuad,
+  quadCentroid,
+  scaleQuadAboutCentroid,
+} from '@/lib/space/homography';
 import {
   calibrateFromReference,
   resizeQuadToWidthCm,
@@ -274,17 +280,26 @@ export function SpaceEditor({
       setPlacements((ps) =>
         ps.map((p) => {
           if (p.id !== selectedId) return p;
-          const artwork = artworkById(p.artworkId);
-          const width = artwork?.sizeVariants[index]?.widthCm ?? null;
-          const quad =
-            trueSize && calibration && width
-              ? resizeQuadToWidthCm(p.quad, width, calibration)
-              : p.quad;
+          const sizes = artworkById(p.artworkId)?.sizeVariants ?? [];
+          const newWidth = sizes[index]?.widthCm ?? null;
+          const prevWidth = sizes[p.variantIndex]?.widthCm ?? null;
+
+          let quad = p.quad;
+          if (newWidth) {
+            if (calibration) {
+              // Calibrated: snap to the real on-wall size.
+              quad = resizeQuadToWidthCm(p.quad, newWidth, calibration);
+            } else if (prevWidth && prevWidth > 0) {
+              // Uncalibrated: still show the size difference, relative to the
+              // size that was selected before.
+              quad = scaleQuadAboutCentroid(p.quad, newWidth / prevWidth);
+            }
+          }
           return { ...p, variantIndex: index, quad };
         }),
       );
     },
-    [selectedId, artworkById, trueSize, calibration],
+    [selectedId, artworkById, calibration],
   );
 
   // -------------------------------------------------------------- calibration
