@@ -81,9 +81,11 @@ try {
       NEXT_PUBLIC_SUPABASE_URL: 'https://static-demo.invalid',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'static-demo',
       NEXT_PUBLIC_SITE_URL: `https://basel29896-ctrl.github.io${BASE_PATH}`,
-      // Web3Forms submission key for the /request-access form. Set it in the
-      // environment before building; if absent the form falls back to mailto.
-      NEXT_PUBLIC_WEB3FORMS_KEY: process.env.NEXT_PUBLIC_WEB3FORMS_KEY ?? '',
+      // Web3Forms submission key for the /request-access form — a public token
+      // that only lets the form email the operator's inbox. Override via env if
+      // needed; the form falls back to mailto when this is empty.
+      NEXT_PUBLIC_WEB3FORMS_KEY:
+        process.env.NEXT_PUBLIC_WEB3FORMS_KEY ?? 'c9750553-5880-459c-83c6-265a08f8a808',
     },
   });
 } finally {
