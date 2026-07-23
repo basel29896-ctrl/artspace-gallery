@@ -1,20 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SpaceArtwork } from '@/lib/space/types';
 
-// Konva touches `window` at module scope, so it can never be server-rendered.
-const SpaceEditor = dynamic(
-  () => import('./SpaceEditor').then((m) => m.SpaceEditor),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-96 items-center justify-center text-sm text-stone-500">
-        Loading editor…
-      </div>
-    ),
-  },
+// Konva touches `window` at module scope, so its import must be deferred to the
+// client. React.lazy (not next/dynamic) keeps this core portable to the Vite
+// SDK; the editor only ever renders after a room photo is chosen, which is
+// client-only, so the chunk never loads during SSR.
+const SpaceEditor = lazy(() =>
+  import('./SpaceEditor').then((m) => ({ default: m.SpaceEditor })),
+);
+
+const EditorFallback = () => (
+  <div className="flex h-96 items-center justify-center text-sm text-stone-500">
+    Loading editor…
+  </div>
 );
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/avif';
@@ -70,13 +70,15 @@ export function SpaceWorkspace({ artworks, initialArtworkId, renderInquiry }: Pr
 
   if (roomUrl) {
     return (
-      <SpaceEditor
-        roomImageUrl={roomUrl}
-        artworks={artworks}
-        initialArtworkId={initialArtworkId}
-        onReset={reset}
-        renderInquiry={renderInquiry}
-      />
+      <Suspense fallback={<EditorFallback />}>
+        <SpaceEditor
+          roomImageUrl={roomUrl}
+          artworks={artworks}
+          initialArtworkId={initialArtworkId}
+          onReset={reset}
+          renderInquiry={renderInquiry}
+        />
+      </Suspense>
     );
   }
 

@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The editor chrome expects these; unset in the embed they fall back to the
+   Tailwind config's generic families. Galleries override via theme.fontFamily. */
+:root {
+  --background: transparent;
+  --foreground: #1c1917;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  background: transparent;
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ArtSpace embed — integration example</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 1100px; }
+      h1 { font-weight: 600; }
+      #space { margin-top: 1.5rem; border: 1px solid #e7e5e4; }
+    </style>
+  </head>
+  <body>
+    <h1>Gallery integration</h1>
+    <p>The editor below is mounted with a single script tag.</p>
+    <div id="space"></div>
+
+    <!-- 1. Load the tiny host loader (framework-free IIFE, exposes window.ArtSpace). -->
+    <script src="./dist/loader/artspace.js"></script>
+
+    <!-- 2. Mount with the gallery's own catalogue + event handlers. -->
+    <script>
+      ArtSpace.mount('#space', {
+        // Where the hosted iframe app lives. Same-origin here for local testing;
+        // in production point at the CDN build.
+        iframeUrl: './dist/iframe/index.html',
+
+        // Absolute, CORS-permissive image URLs the gallery controls.
+        catalog: [
+          {
+            id: 'a1',
+            title: 'Fluid Cartography',
+            imageUrl: 'https://picsum.photos/id/1043/1200/900',
+            artistName: 'Nadia Ferrante',
+            widthCm: 120,
+            heightCm: 90,
+            sizes: [
+              { widthCm: 72, heightCm: 54 },
+              { widthCm: 120, heightCm: 90, priceRange: '$7,400 – $9,000' },
+              { widthCm: 168, heightCm: 126 },
+            ],
+          },
+          {
+            id: 'a2',
+            title: 'Two Figures, Midday',
+            imageUrl: 'https://picsum.photos/id/1025/900/1200',
+            artistName: 'Elias Ward',
+            widthCm: 60,
+            heightCm: 80,
+          },
+        ],
+
+        theme: { accent: '#8a6a24', name: 'Example Gallery' },
+
+        events: {
+          onInquiry: (artwork) => alert('Inquiry for: ' + artwork.title),
+          onSelect: (id) => console.log('selected', id),
+          onExport: () => console.log('exported preview'),
+        },
+      });
+    </script>
+  </body>
+</html>

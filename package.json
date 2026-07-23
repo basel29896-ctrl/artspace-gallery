@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "build:demo": "node scripts/build-demo.mjs"
+    "build:demo": "node scripts/build-demo.mjs",
+    "build:embed": "vite build -c sdk/vite.config.ts && vite build -c sdk/vite.loader.config.ts",
+    "dev:embed": "vite -c sdk/vite.config.ts"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
@@ -29,11 +31,17 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/three": "^0.169.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "playwright": "^1.61.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^5.4.21"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "@vitejs/plugin-react@4.7.0": true
   }
 }
