@@ -65,6 +65,31 @@ export default async function ArtistPage({ params }: Params) {
                 {artist.bio}
               </p>
             ) : null}
+
+            {artist.website || artist.instagram ? (
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                {artist.website ? (
+                  <a
+                    href={artist.website}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="text-stone-600 underline decoration-stone-300 underline-offset-4 transition hover:text-stone-900 hover:decoration-stone-900"
+                  >
+                    Website
+                  </a>
+                ) : null}
+                {artist.instagram ? (
+                  <a
+                    href={`https://instagram.com/${artist.instagram}`}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="text-stone-600 underline decoration-stone-300 underline-offset-4 transition hover:text-stone-900 hover:decoration-stone-900"
+                  >
+                    @{artist.instagram}
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="shrink-0">

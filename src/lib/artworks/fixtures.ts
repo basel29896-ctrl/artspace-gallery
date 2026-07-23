@@ -43,6 +43,8 @@ const ARTISTS: ArtistProfile[] = [
     username: 'mira_okonkwo',
     bio: 'Illustrator and naturalist working in gouache. Entomological plates painted from museum drawers, alongside quieter domestic scenes. Lives between Lagos and Lisbon.',
     avatar_url: null,
+    website: 'https://miraokonkwo.example',
+    instagram: 'mira.paints',
   },
   {
     id: 'artist-elias',
@@ -50,6 +52,8 @@ const ARTISTS: ArtistProfile[] = [
     username: 'elias_ward',
     bio: 'Photographer documenting the spaces where art is made and shown — studios at the end of a working day, galleries an hour before opening.',
     avatar_url: null,
+    website: null,
+    instagram: null,
   },
   {
     id: 'artist-nadia',
@@ -57,6 +61,8 @@ const ARTISTS: ArtistProfile[] = [
     username: 'nadia_ferrante',
     bio: 'Painter. Poured acrylic and oil on panel, built up over months until the surface stops moving.',
     avatar_url: null,
+    website: null,
+    instagram: null,
   },
 ];
 

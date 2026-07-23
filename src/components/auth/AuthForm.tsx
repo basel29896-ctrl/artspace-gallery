@@ -2,51 +2,69 @@
 
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { signIn, signUp, signInWithGoogle, type AuthState } from '@/app/auth/actions';
+import {
+  signIn,
+  signUp,
+  signInWithGoogle,
+  requestPasswordReset,
+  type AuthState,
+} from '@/app/auth/actions';
 
 const EMPTY: AuthState = { error: null, notice: null };
 
-type Mode = 'signin' | 'signup';
+type Mode = 'signin' | 'signup' | 'forgot';
 
-export function AuthForm({ next, initialMode }: { next: string; initialMode: Mode }) {
+export function AuthForm({ next, initialMode }: { next: string; initialMode: 'signin' | 'signup' }) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [signInState, signInAction] = useFormState(signIn, EMPTY);
   const [signUpState, signUpAction] = useFormState(signUp, EMPTY);
+  const [forgotState, forgotAction] = useFormState(requestPasswordReset, EMPTY);
 
-  const state = mode === 'signin' ? signInState : signUpState;
+  const state =
+    mode === 'signin' ? signInState : mode === 'signup' ? signUpState : forgotState;
+  const formAction =
+    mode === 'signin' ? signInAction : mode === 'signup' ? signUpAction : forgotAction;
 
   return (
     <div>
       <h1 className="font-serif text-3xl leading-tight tracking-tight text-stone-900">
-        {mode === 'signin' ? 'Sign in to continue' : 'Create your account'}
+        {mode === 'signin'
+          ? 'Sign in to continue'
+          : mode === 'signup'
+            ? 'Create your account'
+            : 'Reset your password'}
       </h1>
       <p className="mb-8 mt-2 text-sm text-stone-600">
         {mode === 'signin'
           ? 'Like work, contact artists, and publish your own.'
-          : 'Join as a visitor to collect work, or as an artist to publish it.'}
+          : mode === 'signup'
+            ? 'Join as a visitor to collect work, or as an artist to publish it.'
+            : 'Enter your email and we will send you a reset link.'}
       </p>
 
       {/* Plain buttons rather than a tablist: there is one shared form below,
           not separate tabpanels, so the ARIA tab contract would be a lie. */}
-      <div className="flex border-b border-stone-200">
-        {(['signin', 'signup'] as Mode[]).map((m) => (
-          <button
-            key={m}
-            type="button"
-            aria-pressed={mode === m}
-            onClick={() => setMode(m)}
-            className={`-mb-px border-b-2 px-4 py-3 text-sm transition ${
-              mode === m
-                ? 'border-stone-900 text-stone-900'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
-            }`}
-          >
-            {m === 'signin' ? 'Sign in' : 'Create account'}
-          </button>
-        ))}
-      </div>
+      {mode !== 'forgot' ? (
+        <div className="flex border-b border-stone-200">
+          {(['signin', 'signup'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+              className={`-mb-px border-b-2 px-4 py-3 text-sm transition ${
+                mode === m
+                  ? 'border-stone-900 text-stone-900'
+                  : 'border-transparent text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              {m === 'signin' ? 'Sign in' : 'Create account'}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
-      <form action={mode === 'signin' ? signInAction : signUpAction} className="mt-8 space-y-4">
+      <form action={formAction} className="mt-8 space-y-4">
         <input type="hidden" name="next" value={next} />
 
         {mode === 'signup' ? (
@@ -55,15 +73,27 @@ export function AuthForm({ next, initialMode }: { next: string; initialMode: Mod
 
         <Field name="email" label="Email" type="email" autoComplete="email" required />
 
-        <Field
-          name="password"
-          label="Password"
-          type="password"
-          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-          required
-          minLength={8}
-          hint={mode === 'signup' ? 'At least 8 characters.' : undefined}
-        />
+        {mode !== 'forgot' ? (
+          <Field
+            name="password"
+            label="Password"
+            type="password"
+            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+            required
+            minLength={8}
+            hint={mode === 'signup' ? 'At least 8 characters.' : undefined}
+          />
+        ) : null}
+
+        {mode === 'signin' ? (
+          <button
+            type="button"
+            onClick={() => setMode('forgot')}
+            className="text-xs text-stone-500 underline underline-offset-2 hover:text-stone-800"
+          >
+            Forgot password?
+          </button>
+        ) : null}
 
         {mode === 'signup' ? (
           <fieldset className="pt-2">
@@ -91,19 +121,35 @@ export function AuthForm({ next, initialMode }: { next: string; initialMode: Mod
           </p>
         ) : null}
 
-        <SubmitButton label={mode === 'signin' ? 'Sign in' : 'Create account'} />
+        <SubmitButton
+          label={
+            mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'
+          }
+        />
       </form>
 
-      <div className="my-6 flex items-center gap-4">
-        <span className="h-px flex-1 bg-stone-200" />
-        <span className="text-xs uppercase tracking-[0.15em] text-stone-400">or</span>
-        <span className="h-px flex-1 bg-stone-200" />
-      </div>
+      {mode === 'forgot' ? (
+        <button
+          type="button"
+          onClick={() => setMode('signin')}
+          className="mt-4 text-sm text-stone-500 underline underline-offset-2 hover:text-stone-800"
+        >
+          Back to sign in
+        </button>
+      ) : (
+        <>
+          <div className="my-6 flex items-center gap-4">
+            <span className="h-px flex-1 bg-stone-200" />
+            <span className="text-xs uppercase tracking-[0.15em] text-stone-400">or</span>
+            <span className="h-px flex-1 bg-stone-200" />
+          </div>
 
-      <form action={signInWithGoogle}>
-        <input type="hidden" name="next" value={next} />
-        <GoogleButton />
-      </form>
+          <form action={signInWithGoogle}>
+            <input type="hidden" name="next" value={next} />
+            <GoogleButton />
+          </form>
+        </>
+      )}
     </div>
   );
 }

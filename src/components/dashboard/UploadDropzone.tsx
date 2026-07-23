@@ -15,6 +15,9 @@ export function UploadDropzone() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  // Optional extra offered sizes, each with its own price. Fed to the size
+  // switcher + true-scale in "View in Your Space".
+  const [variants, setVariants] = useState<{ w: string; h: string; price: string }[]>([]);
 
   function selectFile(next: File | undefined) {
     if (!next) return;
@@ -37,6 +40,10 @@ export function UploadDropzone() {
     setStatus({ kind: 'idle' });
   }
 
+  function updateVariant(index: number, key: 'w' | 'h' | 'price', value: string) {
+    setVariants((vs) => vs.map((v, i) => (i === index ? { ...v, [key]: value } : v)));
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!file) {
@@ -46,6 +53,17 @@ export function UploadDropzone() {
 
     const form = new FormData(e.currentTarget);
     form.set('file', file);
+
+    // Serialise the variant rows the API expects (skip incomplete ones).
+    const sizeVariants = variants
+      .filter((v) => Number(v.w) > 0 && Number(v.h) > 0)
+      .map((v) => ({
+        width_cm: Number(v.w),
+        height_cm: Number(v.h),
+        price_range: v.price.trim() || null,
+      }));
+    form.set('size_variants', JSON.stringify(sizeVariants));
+
     setStatus({ kind: 'uploading' });
 
     const res = await fetch('/api/artworks', { method: 'POST', body: form });
@@ -58,6 +76,7 @@ export function UploadDropzone() {
 
     setStatus({ kind: 'done' });
     setFile(null);
+    setVariants([]);
     setPreview((old) => {
       if (old) URL.revokeObjectURL(old);
       return null;
@@ -117,6 +136,75 @@ export function UploadDropzone() {
         <Field name="year" label="Year" type="number" placeholder={String(new Date().getFullYear())} />
         <Field name="price_range" label="Price range" maxLength={120} placeholder="$1,200 – $1,800" />
       </div>
+
+      {/* True-to-scale dimensions power "View in Your Space" (real-size preview). */}
+      <fieldset className="rounded-sm border border-stone-200 p-4">
+        <legend className="px-1 text-xs uppercase tracking-[0.15em] text-stone-500">
+          True-to-scale size
+        </legend>
+        <p className="mb-3 text-xs text-stone-500">
+          Real dimensions let buyers preview this piece at its correct size on their wall.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field name="width_cm" label="Width (cm)" type="number" step="0.1" min="0" placeholder="80" />
+          <Field name="height_cm" label="Height (cm)" type="number" step="0.1" min="0" placeholder="60" />
+        </div>
+
+        <div className="mt-4">
+          <span className="block text-sm text-stone-700">Other offered sizes (optional)</span>
+          <div className="mt-2 space-y-2">
+            {variants.map((v, i) => (
+              <div key={i} className="grid grid-cols-[1fr_1fr_1.4fr_auto] items-center gap-2">
+                <input
+                  aria-label="Width cm"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="W cm"
+                  value={v.w}
+                  onChange={(e) => updateVariant(i, 'w', e.target.value)}
+                  className="rounded-sm border border-stone-300 px-2 py-1.5 text-sm focus:border-stone-800 focus:outline-none"
+                />
+                <input
+                  aria-label="Height cm"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="H cm"
+                  value={v.h}
+                  onChange={(e) => updateVariant(i, 'h', e.target.value)}
+                  className="rounded-sm border border-stone-300 px-2 py-1.5 text-sm focus:border-stone-800 focus:outline-none"
+                />
+                <input
+                  aria-label="Price"
+                  type="text"
+                  placeholder="Price (optional)"
+                  value={v.price}
+                  onChange={(e) => updateVariant(i, 'price', e.target.value)}
+                  className="rounded-sm border border-stone-300 px-2 py-1.5 text-sm focus:border-stone-800 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))}
+                  aria-label="Remove size"
+                  className="px-2 text-lg leading-none text-stone-400 hover:text-stone-800"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          {variants.length < 5 ? (
+            <button
+              type="button"
+              onClick={() => setVariants((vs) => [...vs, { w: '', h: '', price: '' }])}
+              className="mt-2 text-sm text-stone-600 underline underline-offset-2 hover:text-stone-900"
+            >
+              + Add a size
+            </button>
+          ) : null}
+        </div>
+      </fieldset>
 
       <div>
         <label htmlFor="description" className="block text-sm text-stone-700">

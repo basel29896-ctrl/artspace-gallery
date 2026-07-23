@@ -13,6 +13,28 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// Empty form fields arrive as '' — treat those as absent rather than 0/invalid.
+const optionalCm = z.preprocess(
+  (v) => (v === '' || v == null ? undefined : v),
+  z.coerce.number().positive().max(3000).optional(),
+);
+
+const sizeVariant = z.object({
+  width_cm: z.coerce.number().positive().max(3000),
+  height_cm: z.coerce.number().positive().max(3000),
+  price_range: z.string().trim().max(120).optional().nullable(),
+});
+
+// size_variants is posted as a JSON string built by the client.
+const sizeVariants = z.preprocess((v) => {
+  if (typeof v !== 'string' || !v.trim()) return [];
+  try {
+    return JSON.parse(v);
+  } catch {
+    return [];
+  }
+}, z.array(sizeVariant).max(6));
+
 const metadataSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(4000).optional(),
@@ -20,6 +42,9 @@ const metadataSchema = z.object({
   dimensions: z.string().trim().max(120).optional(),
   year: z.coerce.number().int().min(1000).max(new Date().getFullYear() + 1).optional(),
   price_range: z.string().trim().max(120).optional(),
+  width_cm: optionalCm,
+  height_cm: optionalCm,
+  size_variants: sizeVariants,
 });
 
 export async function POST(req: Request) {

@@ -27,6 +27,7 @@ const SERVER_ONLY = [
   'src/app/login',
   'src/app/settings',
   'src/app/dashboard',
+  'src/app/reset-password',
   'src/middleware.ts',
   // These import the parked server actions. TypeScript checks every file in
   // the project, not only the ones reachable from a route, so they must go too.

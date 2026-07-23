@@ -33,6 +33,8 @@ export type ArtistProfile = {
   username: string | null;
   bio: string | null;
   avatar_url: string | null;
+  website: string | null;
+  instagram: string | null;
 };
 
 /** Public artist profile plus their full body of work. */
@@ -43,7 +45,7 @@ export async function getArtistByUsername(username: string) {
 
   const { data: artist } = await supabase
     .from('users')
-    .select('id, name, username, bio, avatar_url')
+    .select('id, name, username, bio, avatar_url, website, instagram')
     .eq('username', username)
     .maybeSingle();
 

@@ -19,7 +19,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('role, name, username, bio, plan')
+    .select('role, name, username, bio, plan, website, instagram, avatar_url')
     .eq('id', user.id)
     .single();
 
@@ -57,6 +57,9 @@ export default async function SettingsPage() {
             name: profile?.name ?? '',
             username: profile?.username ?? '',
             bio: profile?.bio ?? '',
+            website: profile?.website ?? '',
+            instagram: profile?.instagram ?? '',
+            avatarUrl: profile?.avatar_url ?? null,
           }}
         />
       </section>

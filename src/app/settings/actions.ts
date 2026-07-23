@@ -16,6 +16,19 @@ const schema = z.object({
     .optional()
     .or(z.literal('')),
   bio: z.string().trim().max(2000).optional().or(z.literal('')),
+  website: z
+    .string()
+    .trim()
+    .max(200)
+    .url('Enter a valid URL (including https://).')
+    .optional()
+    .or(z.literal('')),
+  instagram: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .or(z.literal('')),
 });
 
 export async function updateProfile(
@@ -33,6 +46,8 @@ export async function updateProfile(
     name: formData.get('name'),
     username: formData.get('username'),
     bio: formData.get('bio'),
+    website: formData.get('website'),
+    instagram: formData.get('instagram'),
   });
 
   if (!parsed.success) {
@@ -47,6 +62,9 @@ export async function updateProfile(
       name: parsed.data.name,
       username: parsed.data.username || null,
       bio: parsed.data.bio || null,
+      website: parsed.data.website || null,
+      // Store the handle without a leading @.
+      instagram: parsed.data.instagram?.replace(/^@/, '') || null,
     })
     .eq('id', user.id);
 
@@ -62,6 +80,56 @@ export async function updateProfile(
   revalidatePath('/settings');
   revalidatePath('/dashboard');
   return { error: null, notice: 'Profile saved.' };
+}
+
+const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const AVATAR_MAX = 5 * 1024 * 1024;
+
+/** Uploads a profile photo to the public `avatars` bucket and links it. */
+export async function uploadAvatar(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'You are not signed in.', notice: null };
+
+  const file = formData.get('avatar');
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: 'Choose an image first.', notice: null };
+  }
+  if (!AVATAR_TYPES.includes(file.type)) {
+    return { error: 'Use a JPEG, PNG, or WebP image.', notice: null };
+  }
+  if (file.size > AVATAR_MAX) {
+    return { error: 'Image must be under 5MB.', notice: null };
+  }
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  // uid-scoped path so the storage RLS policy permits the write.
+  const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  const upload = await supabase.storage
+    .from('avatars')
+    .upload(path, bytes, { contentType: file.type, upsert: true });
+  if (upload.error) {
+    console.error('[settings] avatar upload failed', upload.error);
+    return { error: 'Could not upload the image.', notice: null };
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from('avatars').getPublicUrl(path);
+
+  const { error } = await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', user.id);
+  if (error) {
+    console.error('[settings] avatar link failed', error);
+    return { error: 'Could not save the image.', notice: null };
+  }
+
+  revalidatePath('/settings');
+  revalidatePath('/dashboard');
+  return { error: null, notice: 'Photo updated.' };
 }
 
 /**

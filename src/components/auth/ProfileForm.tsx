@@ -1,17 +1,26 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
-import { updateProfile, type ProfileState } from '@/app/settings/actions';
+import { updateProfile, uploadAvatar, type ProfileState } from '@/app/settings/actions';
 
 const EMPTY: ProfileState = { error: null, notice: null };
 
-type Defaults = { name: string; username: string; bio: string };
+type Defaults = {
+  name: string;
+  username: string;
+  bio: string;
+  website: string;
+  instagram: string;
+  avatarUrl: string | null;
+};
 
 export function ProfileForm({ defaults }: { defaults: Defaults }) {
   const [state, action] = useFormState(updateProfile, EMPTY);
 
   return (
-    <form action={action} className="space-y-5">
+    <>
+      <AvatarForm avatarUrl={defaults.avatarUrl} />
+      <form action={action} className="space-y-5">
       <div>
         <label htmlFor="name" className="block text-sm text-stone-700">
           Name
@@ -60,6 +69,39 @@ export function ProfileForm({ defaults }: { defaults: Defaults }) {
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="website" className="block text-sm text-stone-700">
+            Website
+          </label>
+          <input
+            id="website"
+            name="website"
+            type="url"
+            defaultValue={defaults.website}
+            maxLength={200}
+            placeholder="https://your-site.com"
+            className="mt-1 w-full rounded-sm border border-stone-300 bg-white px-3 py-2 text-sm focus:border-stone-800 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label htmlFor="instagram" className="block text-sm text-stone-700">
+            Instagram
+          </label>
+          <div className="mt-1 flex items-center rounded-sm border border-stone-300 bg-white focus-within:border-stone-800">
+            <span className="pl-3 text-sm text-stone-400">@</span>
+            <input
+              id="instagram"
+              name="instagram"
+              defaultValue={defaults.instagram}
+              maxLength={60}
+              placeholder="handle"
+              className="w-full bg-transparent px-1 py-2 text-sm focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
       {state.error ? (
         <p role="alert" className="text-sm text-red-700">
           {state.error}
@@ -71,7 +113,51 @@ export function ProfileForm({ defaults }: { defaults: Defaults }) {
         </p>
       ) : null}
 
-      <SaveButton />
+        <SaveButton />
+      </form>
+    </>
+  );
+}
+
+function AvatarForm({ avatarUrl }: { avatarUrl: string | null }) {
+  const [state, action] = useFormState(uploadAvatar, EMPTY);
+
+  return (
+    <form action={action} className="mb-6 flex items-center gap-4">
+      <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-200 text-stone-400">
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- small avatar, no optimiser
+          <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-xs">No photo</span>
+        )}
+      </span>
+      <div>
+        <label
+          htmlFor="avatar"
+          className="inline-block cursor-pointer rounded-sm border border-stone-300 px-3 py-1.5 text-sm text-stone-700 transition hover:border-stone-800"
+        >
+          Choose photo
+          <input
+            id="avatar"
+            name="avatar"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          />
+        </label>
+        {state.error ? (
+          <p role="alert" className="mt-1 text-xs text-red-700">
+            {state.error}
+          </p>
+        ) : null}
+        {state.notice ? (
+          <p role="status" className="mt-1 text-xs text-emerald-700">
+            {state.notice}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

@@ -11,6 +11,8 @@ export type SubStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'incom
 type Timestamped = { created_at: string };
 
 export type UserRow = Timestamped & {
+  website: string | null;
+  instagram: string | null;
   id: string;
   role: UserRole;
   name: string | null;

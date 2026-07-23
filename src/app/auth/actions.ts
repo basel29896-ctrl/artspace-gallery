@@ -136,3 +136,62 @@ export async function signOut() {
   revalidatePath('/', 'layout');
   redirect('/');
 }
+
+const emailOnly = z.object({ email: z.string().trim().email() });
+
+/**
+ * Sends a password-reset link. The response is identical whether or not the
+ * address has an account — otherwise this becomes an enumeration oracle.
+ */
+export async function requestPasswordReset(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const notice = 'If that email has an account, a reset link is on its way.';
+
+  if (!rateLimit(`reset:${requestIp()}`, 5, 60 * 60 * 1000).ok) {
+    return { error: 'Too many requests. Please wait a while.', notice: null };
+  }
+
+  const parsed = emailOnly.safeParse({ email: formData.get('email') });
+  if (parsed.success) {
+    const supabase = createClient();
+    await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      // The link lands on the callback (which sets a short-lived session), then
+      // forwards to the reset form.
+      redirectTo: `${publicEnv.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+    });
+  }
+  return { error: null, notice };
+}
+
+const newPassword = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters.').max(200),
+});
+
+/** Sets a new password for the session established by the reset link. */
+export async function updatePassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Your reset link has expired. Request a new one.', notice: null };
+  }
+
+  const parsed = newPassword.safeParse({ password: formData.get('password') });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Please check the form.', notice: null };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    return { error: 'Could not update your password. Please try again.', notice: null };
+  }
+
+  revalidatePath('/', 'layout');
+  redirect('/dashboard');
+}
