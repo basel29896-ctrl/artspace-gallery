@@ -163,9 +163,16 @@ function paintMoulding(
     inner: string,
     horizontal: boolean,
   ) => {
+    // A rounded moulding profile across the bevel depth: a slightly dark outer
+    // contact edge, a bright chamfer just inside it, a lit flat face, then the
+    // face rolling into the dark inner rabbet. Multiple stops read as a curved
+    // surface catching light, not a flat ramp.
     const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-    g.addColorStop(0, outer);
-    g.addColorStop(0.35, 'rgba(0,0,0,0)');
+    g.addColorStop(0, 'rgba(0,0,0,0.16)');
+    g.addColorStop(0.1, outer);
+    g.addColorStop(0.28, 'rgba(255,255,255,0.04)');
+    g.addColorStop(0.5, 'rgba(0,0,0,0)');
+    g.addColorStop(0.82, 'rgba(0,0,0,0.07)');
     g.addColorStop(1, inner);
     ctx.fillStyle = g;
     tracePoly(ctx, pts);
@@ -174,14 +181,16 @@ function paintMoulding(
   };
 
   // Top / left lit; bottom / right in shadow. Gradient runs outer edge → opening.
-  side([[0, 0], [w, 0], [iR, iT], [iL, iT]], 0, 0, 0, iT, `rgba(255,255,255,${hi})`, 'rgba(0,0,0,0.35)', true);
-  side([[0, 0], [iL, iT], [iL, iB], [0, h]], 0, 0, iL, 0, `rgba(255,255,255,${hi})`, 'rgba(0,0,0,0.35)', false);
-  side([[0, h], [iL, iB], [iR, iB], [w, h]], 0, h, 0, iB, `rgba(0,0,0,${lo})`, 'rgba(0,0,0,0.22)', true);
-  side([[w, 0], [w, h], [iR, iB], [iR, iT]], w, 0, iR, 0, `rgba(0,0,0,${lo})`, 'rgba(0,0,0,0.22)', false);
+  side([[0, 0], [w, 0], [iR, iT], [iL, iT]], 0, 0, 0, iT, `rgba(255,255,255,${hi})`, 'rgba(0,0,0,0.4)', true);
+  side([[0, 0], [iL, iT], [iL, iB], [0, h]], 0, 0, iL, 0, `rgba(255,255,255,${hi})`, 'rgba(0,0,0,0.4)', false);
+  side([[0, h], [iL, iB], [iR, iB], [w, h]], 0, h, 0, iB, `rgba(0,0,0,${lo})`, 'rgba(0,0,0,0.28)', true);
+  side([[w, 0], [w, h], [iR, iB], [iR, iT]], w, 0, iR, 0, `rgba(0,0,0,${lo})`, 'rgba(0,0,0,0.28)', false);
 
-  // Mitered 45° corner seams: outer corner → matching opening corner.
-  ctx.strokeStyle = 'rgba(0,0,0,0.32)';
-  ctx.lineWidth = 1;
+  // Uneven ambient light + fine surface noise break the flat "vector" look.
+  paintAmbient(ctx, w, h, inset);
+  paintSurfaceNoise(ctx, w, h, inset, texture === 'metal' ? 0.05 : 0.07);
+
+  // Mitered corner seams — soft, with a faint lit edge on one side of the join.
   const seams: [number, number, number, number][] = [
     [0, 0, iL, iT],
     [w, 0, iR, iT],
@@ -189,22 +198,80 @@ function paintMoulding(
     [0, h, iL, iB],
   ];
   for (const [x0, y0, x1, y1] of seams) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(x0 + 1, y0);
+    ctx.lineTo(x1 + 1, y1);
+    ctx.stroke();
   }
 
-  // Inner rabbet: a hard dark step where the frame drops to the opening.
+  // Inner rabbet: a dark step, with a thin highlight on the lip catching light.
   const lip = Math.max(inset * 0.12, 1.5);
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = lip;
   ctx.strokeRect(iL - lip / 2, iT - lip / 2, w - inset * 2 + lip, h - inset * 2 + lip);
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = Math.max(inset * 0.03, 1);
+  ctx.strokeRect(iL - lip * 1.15, iT - lip * 1.15, w - inset * 2 + lip * 2.3, h - inset * 2 + lip * 2.3);
 
-  // Thin outer seam so the moulding has a crisp edge against the wall.
-  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  // Soft outer contact edge against the wall (top-left lighter, bottom-right darker).
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
   ctx.lineWidth = Math.max(inset * 0.04, 1);
   ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+}
+
+/** Clips subsequent drawing to the moulding border ring (excludes the opening). */
+function ringClip(ctx: CanvasRenderingContext2D, w: number, h: number, inset: number) {
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.rect(inset, inset, w - inset * 2, h - inset * 2);
+  ctx.clip('evenodd');
+}
+
+/** A gentle top-left light falloff so the face is not perfectly uniform. */
+function paintAmbient(ctx: CanvasRenderingContext2D, w: number, h: number, inset: number) {
+  ctx.save();
+  ringClip(ctx, w, h, inset);
+  const g = ctx.createRadialGradient(w * 0.3, h * 0.25, 0, w * 0.3, h * 0.25, Math.max(w, h) * 0.9);
+  g.addColorStop(0, 'rgba(255,255,255,0.08)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.12)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+/** Fine speckled luminance noise — the single biggest cure for the digital look. */
+function paintSurfaceNoise(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  inset: number,
+  amount: number,
+) {
+  ctx.save();
+  ringClip(ctx, w, h, inset);
+  const area = w * h - (w - 2 * inset) * (h - 2 * inset);
+  const count = Math.min(Math.max(Math.round(area * 0.03), 500), 7000);
+  let seed = (Math.round(w * 7 + h * 13 + inset) % 9973) + 1;
+  const rnd = () => {
+    seed = (seed * 48271) % 2147483647;
+    return seed / 2147483647;
+  };
+  for (let i = 0; i < count; i += 1) {
+    const x = rnd() * w;
+    const y = rnd() * h;
+    const a = amount * (0.35 + rnd() * 0.65);
+    ctx.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  ctx.restore();
 }
 
 export const FRAMES: Record<FrameStyle, FrameSpec | null> = {
