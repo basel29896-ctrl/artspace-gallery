@@ -19,14 +19,7 @@ export function SiteFooter() {
           <Link href="/artists" className="transition hover:text-stone-900">
             Artists
           </Link>
-          {IS_STATIC_DEMO ? (
-            <a
-              href="https://github.com/basel29896-ctrl/artspace-gallery"
-              className="transition hover:text-stone-900"
-            >
-              Source on GitHub
-            </a>
-          ) : (
+          {IS_STATIC_DEMO ? null : (
             <Link href="/login?mode=signup" className="transition hover:text-stone-900">
               Sell your work
             </Link>
