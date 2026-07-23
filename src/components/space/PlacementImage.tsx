@@ -21,6 +21,8 @@ type Props = {
   realism: RealismSettings;
   stageWidth: number;
   stageHeight: number;
+  /** Rewrites the URL before the anonymous load (CORS proxy); identity if absent. */
+  resolveImageUrl?: (url: string) => string;
   /** Reports the framed bitmap up so the export can re-render every placement. */
   onComposite: (id: string, composite: PlacementComposite | null) => void;
 };
@@ -42,10 +44,12 @@ export const PlacementImage = memo(function PlacementImage({
   realism,
   stageWidth,
   stageHeight,
+  resolveImageUrl,
   onComposite,
 }: Props) {
-  // anonymous so the export canvas stays untainted (Supabase sends permissive CORS).
-  const { image } = useImage(displayUrl, 'anonymous');
+  // anonymous so the export canvas stays untainted; a CORS proxy can be injected
+  // for hosts whose images do not send permissive headers.
+  const { image } = useImage(resolveImageUrl ? resolveImageUrl(displayUrl) : displayUrl, 'anonymous');
 
   const { compositeCanvas, framed, version } = useArtworkComposite({
     artwork: image,

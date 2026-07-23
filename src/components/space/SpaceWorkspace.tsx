@@ -1,7 +1,7 @@
 'use client';
 
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { SpaceArtwork } from '@/lib/space/types';
+import type { SpaceArtwork, EmbedOptions } from '@/lib/space/types';
 
 // Konva touches `window` at module scope, so its import must be deferred to the
 // client. React.lazy (not next/dynamic) keeps this core portable to the Vite
@@ -26,9 +26,10 @@ type Props = {
   /** Inquiry UI, injected by the caller so this core carries no backend
    *  coupling. The app supplies its Supabase dialog; the embed SDK an event. */
   renderInquiry?: (artwork: SpaceArtwork) => ReactNode;
+  embed?: EmbedOptions;
 };
 
-export function SpaceWorkspace({ artworks, initialArtworkId, renderInquiry }: Props) {
+export function SpaceWorkspace({ artworks, initialArtworkId, renderInquiry, embed }: Props) {
   const [roomUrl, setRoomUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -77,6 +78,7 @@ export function SpaceWorkspace({ artworks, initialArtworkId, renderInquiry }: Pr
           initialArtworkId={initialArtworkId}
           onReset={reset}
           renderInquiry={renderInquiry}
+          embed={embed}
         />
       </Suspense>
     );

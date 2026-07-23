@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, type CSSProperties } from 'react';
-import type { SpaceArtwork } from '@/lib/space/types';
+import type { SpaceArtwork, EmbedOptions } from '@/lib/space/types';
 import { SpaceWorkspace } from '@/components/space/SpaceWorkspace';
 import { toSpaceArtwork, type SpaceEmbedArtwork, type SpaceEmbedConfig } from './config';
 
@@ -14,7 +14,7 @@ import { toSpaceArtwork, type SpaceEmbedArtwork, type SpaceEmbedConfig } from '.
  * iframe host and Vite bundle wrap; it also runs unchanged inside this Next app.
  */
 export function SpaceEmbed({ config }: { config: SpaceEmbedConfig }) {
-  const { catalog, initialArtworkId, theme, events } = config;
+  const { catalog, initialArtworkId, theme, events, features, imageProxyUrl } = config;
 
   const artworks: SpaceArtwork[] = useMemo(() => catalog.map(toSpaceArtwork), [catalog]);
   const bySpaceId = useMemo(() => {
@@ -47,7 +47,7 @@ export function SpaceEmbed({ config }: { config: SpaceEmbedConfig }) {
   } as CSSProperties;
 
   const renderInquiry =
-    events?.onInquiry && (config.features?.inquiry ?? true)
+    events?.onInquiry && (features?.inquiry ?? true)
       ? (artwork: SpaceArtwork) => {
           const original = bySpaceId.get(artwork.id);
           if (!original) return null;
@@ -64,12 +64,34 @@ export function SpaceEmbed({ config }: { config: SpaceEmbedConfig }) {
         }
       : undefined;
 
+  // Serialisable proxy template → URL resolver for the anonymous canvas loads.
+  const resolveImageUrl = imageProxyUrl
+    ? (url: string) => imageProxyUrl.replace('{url}', encodeURIComponent(url))
+    : undefined;
+
+  const embedOptions: EmbedOptions = {
+    features: features
+      ? {
+          calibration: features.calibration ?? true,
+          multiPlacement: features.multiPlacement ?? true,
+          download: features.download ?? true,
+          inquiry: features.inquiry ?? true,
+        }
+      : undefined,
+    accent: theme?.accent,
+    radius: theme?.radius,
+    resolveImageUrl,
+    onSelectArtwork: events?.onSelect,
+    onExported: events?.onExport,
+  };
+
   return (
     <div style={style} data-artspace-embed>
       <SpaceWorkspace
         artworks={artworks}
         initialArtworkId={initialId}
         renderInquiry={renderInquiry}
+        embed={embedOptions}
       />
     </div>
   );

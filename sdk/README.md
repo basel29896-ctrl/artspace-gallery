@@ -46,15 +46,16 @@ See `example.html` for a runnable local demo (after building).
 |-------|-------|
 | `catalog[]` | `{ id, title, imageUrl, artistName?, widthCm?, heightCm?, sizes? }`. |
 | `initialArtworkId?` | Piece the editor opens on. Defaults to the first. |
-| `theme?` | `{ accent, surface, fontFamily, radius, name, logoUrl }`. Tokens as CSS vars; full coverage in Phase 2. |
-| `features?` | `{ room3d, calibration, multiPlacement, download, inquiry }`. Enforcement lands in Phase 2. |
-| `events?` | `onInquiry`, `onSelect`, `onExport`, `onAddToCart`. |
+| `theme?` | `{ accent, surface, fontFamily, radius, name, logoUrl }`. `accent` tints primary actions + selection; `surface`/`fontFamily`/`radius` applied to the editor root and controls. |
+| `features?` | `{ room3d, calibration, multiPlacement, download, inquiry }` — **enforced**: off hides/limits that surface (e.g. `multiPlacement:false` makes the picker swap the single piece instead of adding). |
+| `events?` | `onInquiry`, `onSelect` (focus change), `onExport` (after download), `onAddToCart`. |
+| `imageProxyUrl?` | CORS proxy template with `{url}`, e.g. `https://proxy.gallery.com/?url={url}`. Applied to the anonymous canvas load. |
 
-### Image CORS (required)
+### Image CORS
 
 Export re-reads artwork pixels into a canvas. Catalogue images **must** send
-`Access-Control-Allow-Origin` or the download taints and fails. A gallery-side
-proxy fallback lands in Phase 2.
+`Access-Control-Allow-Origin`, or route them through `imageProxyUrl` (a proxy
+that adds the header) so the download does not taint.
 
 ## How it works
 
@@ -65,5 +66,4 @@ serialisable data crosses the boundary (`sdk/src/bridge.ts`).
 
 ## Not yet (later phases)
 
-- Phase 2: feature-flag enforcement, full theme tokens, CORS proxy.
 - Phase 3: license key + origin allowlist + validator.

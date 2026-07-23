@@ -65,6 +65,13 @@ export type SpaceEmbedConfig = {
   theme?: SpaceEmbedTheme;
   features?: SpaceEmbedFeatures;
   events?: SpaceEmbedEvents;
+  /**
+   * CORS proxy for catalogue images whose host does not send permissive
+   * headers. A URL template containing `{url}`, e.g.
+   * "https://proxy.gallery.com/?url={url}"; the artwork URL is inserted
+   * (encoded). Serialisable, so it survives the postMessage boundary.
+   */
+  imageProxyUrl?: string;
 };
 
 /** Maps a public catalogue item onto the editor's internal artwork shape. */

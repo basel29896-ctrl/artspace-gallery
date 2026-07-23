@@ -50,7 +50,13 @@
           },
         ],
 
-        theme: { accent: '#8a6a24', name: 'Example Gallery' },
+        theme: { accent: '#8a6a24', radius: '2px', name: 'Example Gallery' },
+
+        // Trim the surface for a lean single-piece placer:
+        // features: { multiPlacement: false, calibration: true, download: true },
+
+        // If catalogue images lack CORS headers, route them through a proxy:
+        // imageProxyUrl: 'https://proxy.gallery.com/?url={url}',
 
         events: {
           onInquiry: (artwork) => alert('Inquiry for: ' + artwork.title),

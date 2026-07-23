@@ -21,7 +21,8 @@ import {
   renderExportComposite,
 } from '@/lib/space/exportPreview';
 import type { ReactNode } from 'react';
-import type { SpaceArtwork } from '@/lib/space/types';
+import type { SpaceArtwork, EmbedOptions } from '@/lib/space/types';
+import { resolveFeatures } from '@/lib/space/types';
 import { SpaceControls } from './SpaceControls';
 
 const HANDLE_RADIUS = 9;
@@ -59,6 +60,7 @@ type Props = {
   initialArtworkId: string;
   onReset: () => void;
   renderInquiry?: (artwork: SpaceArtwork) => ReactNode;
+  embed?: EmbedOptions;
 };
 
 export function SpaceEditor({
@@ -67,7 +69,10 @@ export function SpaceEditor({
   initialArtworkId,
   onReset,
   renderInquiry,
+  embed,
 }: Props) {
+  const features = resolveFeatures(embed?.features);
+  const accent = embed?.accent;
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
 
@@ -150,6 +155,18 @@ export function SpaceEditor({
       const variantIndex =
         baseIdx >= 0 ? baseIdx : Math.floor(artwork.sizeVariants.length / 2);
 
+      // Single-piece mode: the picker swaps the one placement's artwork in place,
+      // keeping its position/frame/mat, rather than adding another.
+      if (!features.multiPlacement && placements.length > 0) {
+        setPlacements((ps) =>
+          ps.map((p, i) =>
+            i === 0 ? { ...p, artworkId, variantIndex: Math.max(variantIndex, 0) } : p,
+          ),
+        );
+        setSelectedId(placements[0].id);
+        return;
+      }
+
       let quad = seedQuad(stageSize.width, stageSize.height, aspect, placements.length);
       const width = artwork.sizeVariants[variantIndex]?.widthCm ?? artwork.widthCm ?? null;
       if (trueSize && calibration && width) quad = resizeQuadToWidthCm(quad, width, calibration);
@@ -165,7 +182,7 @@ export function SpaceEditor({
       setPlacements((ps) => [...ps, placement]);
       setSelectedId(placement.id);
     },
-    [artworkById, roomImage, placements, stageSize, trueSize, calibration],
+    [artworkById, roomImage, placements, stageSize, trueSize, calibration, features.multiPlacement],
   );
 
   // Seed the first placement once the room is ready.
@@ -173,6 +190,14 @@ export function SpaceEditor({
     if (placements.length > 0 || !roomImage) return;
     addArtwork(initialArtworkId);
   }, [placements.length, roomImage, initialArtworkId, addArtwork]);
+
+  // Notify the host which artwork is in focus.
+  useEffect(() => {
+    if (!selectedId) return;
+    const p = placements.find((x) => x.id === selectedId);
+    if (p) embed?.onSelectArtwork?.(p.artworkId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire on selection change only
+  }, [selectedId]);
 
   const updateQuad = useCallback((id: string, quad: Quad) => {
     setPlacements((ps) => ps.map((p) => (p.id === id ? { ...p, quad } : p)));
@@ -429,10 +454,11 @@ export function SpaceEditor({
 
     try {
       downloadCanvasAsJpeg(canvas, 'artspace-preview.jpg');
+      embed?.onExported?.();
     } catch {
       setExportError('Could not export this image. Please try again later.');
     }
-  }, [roomImage, placements, stageSize, realism.shadow, selectedArtwork, artworkById]);
+  }, [roomImage, placements, stageSize, realism.shadow, selectedArtwork, artworkById, embed]);
 
   // -------------------------------------------------------------- render data
 
@@ -493,6 +519,7 @@ export function SpaceEditor({
                     realism={realism}
                     stageWidth={stageSize.width}
                     stageHeight={stageSize.height}
+                    resolveImageUrl={embed?.resolveImageUrl}
                     onComposite={onComposite}
                   />
                 );
@@ -509,7 +536,7 @@ export function SpaceEditor({
                     <Line
                       points={selectedFlat}
                       closed
-                      stroke="rgba(255,255,255,0.9)"
+                      stroke={accent ?? 'rgba(255,255,255,0.9)'}
                       strokeWidth={1.5}
                       dash={[6, 4]}
                       listening={false}
@@ -613,6 +640,9 @@ export function SpaceEditor({
         exportError={exportError}
         onReset={onReset}
         renderInquiry={renderInquiry}
+        features={features}
+        accent={accent}
+        radius={embed?.radius}
       />
     </div>
   );

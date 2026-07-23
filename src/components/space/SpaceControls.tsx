@@ -7,8 +7,9 @@ import {
   type MatSettings,
   type RealismSettings,
 } from '@/lib/space/renderPerspective';
-import type { ReactNode } from 'react';
-import type { SpaceArtwork, ArtworkSize } from '@/lib/space/types';
+import type { CSSProperties, ReactNode } from 'react';
+import type { SpaceArtwork, ArtworkSize, EditorFeatures } from '@/lib/space/types';
+import { resolveFeatures } from '@/lib/space/types';
 
 const FRAME_OPTIONS: { value: FrameStyle; label: string; swatch: string }[] = [
   { value: 'none', label: 'None', swatch: 'linear-gradient(135deg,#e7e5e4,#d6d3d1)' },
@@ -77,6 +78,9 @@ type Props = {
   onReset: () => void;
   /** Inquiry UI is injected so the editor core carries no backend coupling. */
   renderInquiry?: (artwork: SpaceArtwork) => ReactNode;
+  features?: EditorFeatures;
+  accent?: string;
+  radius?: string;
 };
 
 export function SpaceControls(props: Props) {
@@ -114,9 +118,20 @@ export function SpaceControls(props: Props) {
     exportError,
     onReset,
     renderInquiry,
+    accent,
+    radius,
   } = props;
 
+  const features = resolveFeatures(props.features);
   const hasSelection = selectedId !== null;
+
+  // Theme: accent tints primary actions and selected states; radius rounds them.
+  const primaryStyle: CSSProperties | undefined =
+    accent || radius ? { background: accent, borderRadius: radius } : undefined;
+  const selectedStyle: CSSProperties | undefined = accent
+    ? { borderColor: accent, color: accent }
+    : undefined;
+  const selStyle = (on: boolean) => (on ? selectedStyle : undefined);
 
   // Mat width is stored as a fraction of the short edge; the slider works in cm.
   const shortEdgeCm = artworkShortEdgeCm ?? NOMINAL_SHORT_CM;
@@ -146,7 +161,7 @@ export function SpaceControls(props: Props) {
   return (
     <aside className="space-y-8">
       {/* --------------------------------------------------------- placed works */}
-      {placements.length > 0 ? (
+      {features.multiPlacement && placements.length > 0 ? (
         <section>
           <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">
             Placed · {placements.length}
@@ -156,6 +171,7 @@ export function SpaceControls(props: Props) {
             {[...placements].reverse().map((p) => (
               <li
                 key={p.id}
+                style={selStyle(p.id === selectedId)}
                 className={`flex items-center gap-2 rounded-sm border p-1.5 transition ${
                   p.id === selectedId ? 'border-stone-900 bg-stone-50' : 'border-stone-200'
                 }`}
@@ -189,7 +205,9 @@ export function SpaceControls(props: Props) {
 
       {/* --------------------------------------------------------- add artwork */}
       <section>
-        <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Add artwork</h2>
+        <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">
+          {features.multiPlacement ? 'Add artwork' : 'Artwork'}
+        </h2>
         <div className="mt-3 grid grid-cols-5 gap-2">
           {artworks.map((artwork) => (
             <button
@@ -224,6 +242,7 @@ export function SpaceControls(props: Props) {
                   type="button"
                   onClick={() => onFrameChange(option.value)}
                   aria-pressed={frame === option.value}
+                  style={selStyle(frame === option.value)}
                   className={`flex flex-col items-center gap-1.5 rounded-sm border p-2 text-[11px] transition ${
                     frame === option.value
                       ? 'border-stone-900 text-stone-900'
@@ -274,6 +293,7 @@ export function SpaceControls(props: Props) {
                   }
                   aria-pressed={mat.color === option.value}
                   disabled={mat.width === 0}
+                  style={selStyle(mat.color === option.value && mat.width > 0)}
                   className={`flex flex-col items-center gap-1.5 rounded-sm border p-2 text-[11px] transition disabled:opacity-40 ${
                     mat.color === option.value && mat.width > 0
                       ? 'border-stone-900 text-stone-900'
@@ -311,6 +331,7 @@ export function SpaceControls(props: Props) {
                     type="button"
                     onClick={() => onSelectVariant(index)}
                     aria-pressed={index === variantIndex}
+                    style={selStyle(index === variantIndex)}
                     className={`rounded-sm border px-3 py-2 text-left text-sm transition ${
                       index === variantIndex
                         ? 'border-stone-900 text-stone-900'
@@ -348,6 +369,7 @@ export function SpaceControls(props: Props) {
       )}
 
       {/* --------------------------------------------------------- true scale */}
+      {features.calibration ? (
       <section>
         <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">True scale</h2>
         {calibrating ? (
@@ -372,6 +394,7 @@ export function SpaceControls(props: Props) {
                 type="button"
                 onClick={onApplyCalibration}
                 disabled={!(Number(refCm) > 0)}
+                style={primaryStyle}
                 className="flex-1 rounded-sm bg-stone-900 px-4 py-2 text-sm font-medium text-stone-50 transition hover:bg-stone-700 disabled:opacity-40"
               >
                 Apply scale
@@ -413,6 +436,7 @@ export function SpaceControls(props: Props) {
           </div>
         )}
       </section>
+      ) : null}
 
       {/* ------------------------------------------------------------ realism */}
       <section>
@@ -448,13 +472,16 @@ export function SpaceControls(props: Props) {
 
       {/* ------------------------------------------------------------- actions */}
       <section className="space-y-3 border-t border-stone-200 pt-6">
-        <button
-          type="button"
-          onClick={onDownload}
-          className="w-full rounded-sm bg-stone-900 px-5 py-2.5 text-sm font-medium text-stone-50 transition hover:bg-stone-700"
-        >
-          Download Preview
-        </button>
+        {features.download ? (
+          <button
+            type="button"
+            onClick={onDownload}
+            style={primaryStyle}
+            className="w-full rounded-sm bg-stone-900 px-5 py-2.5 text-sm font-medium text-stone-50 transition hover:bg-stone-700"
+          >
+            Download Preview
+          </button>
+        ) : null}
         {exportError ? (
           <p role="alert" className="text-sm text-red-700">
             {exportError}

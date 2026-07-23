@@ -21,6 +21,41 @@ export type SpaceArtwork = {
   sizeVariants: ArtworkSize[];
 };
 
+/** Editor capabilities a host can trim. All default on. */
+export type EditorFeatures = {
+  calibration: boolean;
+  multiPlacement: boolean;
+  download: boolean;
+  inquiry: boolean;
+};
+
+/**
+ * Host-supplied options threaded through the editor core. Empty/omitted keeps
+ * the full-featured app defaults; the embeddable SDK populates it from config.
+ */
+export type EmbedOptions = {
+  features?: Partial<EditorFeatures>;
+  /** Accent colour for primary actions and selection highlights. */
+  accent?: string;
+  /** Corner radius token for buttons, e.g. "6px". */
+  radius?: string;
+  /** Rewrites an artwork URL before the (anonymous, canvas) load — a CORS proxy. */
+  resolveImageUrl?: (url: string) => string;
+  onSelectArtwork?: (artworkId: string) => void;
+  onExported?: () => void;
+};
+
+export const DEFAULT_FEATURES: EditorFeatures = {
+  calibration: true,
+  multiPlacement: true,
+  download: true,
+  inquiry: true,
+};
+
+export function resolveFeatures(features?: Partial<EditorFeatures>): EditorFeatures {
+  return { ...DEFAULT_FEATURES, ...features };
+}
+
 /** Coerces a raw `size_variants` payload (JSONB row, or SDK JSON) into valid sizes. */
 export function normalizeSizeVariants(raw: unknown): ArtworkSize[] {
   if (!Array.isArray(raw)) return [];
