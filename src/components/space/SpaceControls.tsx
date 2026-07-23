@@ -1,6 +1,12 @@
 'use client';
 
-import type { FrameStyle, MatColor, MatSettings, RealismSettings } from '@/lib/space/renderPerspective';
+import {
+  FRAMES,
+  type FrameStyle,
+  type MatColor,
+  type MatSettings,
+  type RealismSettings,
+} from '@/lib/space/renderPerspective';
 import type { SpaceArtwork, ArtworkSize } from '@/lib/artworks/queries';
 import { ContactArtistDialog } from '@/components/artwork/ContactArtistDialog';
 
@@ -10,10 +16,16 @@ const FRAME_OPTIONS: { value: FrameStyle; label: string; swatch: string }[] = [
   { value: 'black', label: 'Black', swatch: 'linear-gradient(135deg,#3a342e,#141210)' },
   { value: 'white', label: 'White', swatch: 'linear-gradient(135deg,#ffffff,#ddd8ce)' },
   { value: 'oak', label: 'Oak', swatch: 'linear-gradient(135deg,#e0c288,#a97e42)' },
+  { value: 'natural-oak', label: 'N. Oak', swatch: 'linear-gradient(135deg,#e4c88f,#b58f52)' },
   { value: 'walnut', label: 'Walnut', swatch: 'linear-gradient(135deg,#7d5433,#3f2817)' },
   { value: 'gold', label: 'Gold', swatch: 'linear-gradient(135deg,#f6e6ab,#8a6a24)' },
   { value: 'silver', label: 'Silver', swatch: 'linear-gradient(135deg,#e8eaec,#9aa0a6)' },
+  { value: 'thin-metal', label: 'Metal', swatch: 'linear-gradient(135deg,#eef1f3,#8f969d)' },
 ];
+
+/** Fallback artwork short edge (cm) for the mat slider before real dims exist. */
+const NOMINAL_SHORT_CM = 60;
+const MAT_MAX_CM = 15;
 
 const MAT_COLORS: { value: MatColor; label: string; swatch: string }[] = [
   { value: 'white', label: 'White', swatch: '#f7f5f0' },
@@ -37,6 +49,8 @@ type Props = {
 
   // Selected placement editing.
   selectedArtwork?: SpaceArtwork;
+  /** Selected artwork's real short edge in cm, when known (drives the mat cm slider). */
+  artworkShortEdgeCm?: number;
   frame: FrameStyle;
   onFrameChange: (frame: FrameStyle) => void;
   mat: MatSettings;
@@ -75,6 +89,7 @@ export function SpaceControls(props: Props) {
     onBringForward,
     onSendBack,
     selectedArtwork,
+    artworkShortEdgeCm,
     frame,
     onFrameChange,
     mat,
@@ -99,6 +114,31 @@ export function SpaceControls(props: Props) {
   } = props;
 
   const hasSelection = selectedId !== null;
+
+  // Mat width is stored as a fraction of the short edge; the slider works in cm.
+  const shortEdgeCm = artworkShortEdgeCm ?? NOMINAL_SHORT_CM;
+  const matCm = mat.width * shortEdgeCm;
+  const setMatCm = (cm: number) =>
+    onMatChange({ ...mat, width: Math.min(Math.max(cm, 0), MAT_MAX_CM) / shortEdgeCm });
+
+  // Framed outer size: frame + mat grow the piece. Border per side (fraction of
+  // the short edge), applied symmetrically; bottom-weighting adds 20% mat below.
+  const frameFrac = FRAMES[frame]?.ratio ?? 0;
+  const borderFrac = frameFrac + mat.width;
+  const shortFactor = 1 + 2 * borderFrac;
+  const artW = selectedArtwork?.widthCm ?? null;
+  const artH = selectedArtwork?.heightCm ?? null;
+  const framedReadout = (() => {
+    if (!hasSelection) return null;
+    if (calibrated && artW && artH) {
+      const border = borderFrac * shortEdgeCm;
+      const bottom = mat.bottomWeighted ? mat.width * shortEdgeCm * 0.2 : 0;
+      const w = artW + border * 2;
+      const h = artH + border * 2 + bottom;
+      return `${w.toFixed(1)} × ${h.toFixed(1)} cm framed`;
+    }
+    return borderFrac > 0 ? `×${shortFactor.toFixed(2)} of the artwork` : null;
+  })();
 
   return (
     <aside className="space-y-8">
@@ -202,17 +242,18 @@ export function SpaceControls(props: Props) {
             <div className="flex items-baseline justify-between">
               <h2 className="text-xs uppercase tracking-[0.18em] text-stone-500">Mat</h2>
               <span className="text-xs tabular-nums text-stone-500">
-                {mat.width === 0 ? 'Off' : `${Math.round(mat.width * 100)}%`}
+                {mat.width === 0 ? 'Off' : `${matCm.toFixed(1)} cm`}
+                {artworkShortEdgeCm ? '' : ' approx'}
               </span>
             </div>
             <input
-              aria-label="Mat width"
+              aria-label="Mat width in centimetres"
               type="range"
               min={0}
-              max={0.16}
-              step={0.005}
-              value={mat.width}
-              onChange={(e) => onMatChange({ ...mat, width: Number(e.target.value) })}
+              max={MAT_MAX_CM}
+              step={0.5}
+              value={matCm}
+              onChange={(e) => setMatCm(Number(e.target.value))}
               className="mt-3 w-full accent-stone-900"
             />
             <div className="mt-3 grid grid-cols-4 gap-2">
@@ -221,7 +262,12 @@ export function SpaceControls(props: Props) {
                   key={option.value}
                   type="button"
                   onClick={() =>
-                    onMatChange({ color: option.value, width: mat.width === 0 ? 0.06 : mat.width })
+                    onMatChange({
+                      ...mat,
+                      color: option.value,
+                      // Nudge the mat on (to ~5 cm) if a colour is picked while off.
+                      width: mat.width === 0 ? 5 / shortEdgeCm : mat.width,
+                    })
                   }
                   aria-pressed={mat.color === option.value}
                   disabled={mat.width === 0}
@@ -240,6 +286,16 @@ export function SpaceControls(props: Props) {
                 </button>
               ))}
             </div>
+            <label className="mt-3 flex items-center justify-between text-sm text-stone-700">
+              <span>Bottom-weighted</span>
+              <input
+                type="checkbox"
+                checked={mat.bottomWeighted ?? false}
+                disabled={mat.width === 0}
+                onChange={(e) => onMatChange({ ...mat, bottomWeighted: e.target.checked })}
+                className="h-4 w-4 accent-stone-900 disabled:opacity-40"
+              />
+            </label>
           </section>
 
           {sizes.length > 0 ? (
@@ -272,6 +328,13 @@ export function SpaceControls(props: Props) {
                   Set the scale below to compare these at true size.
                 </p>
               ) : null}
+            </section>
+          ) : null}
+
+          {framedReadout ? (
+            <section className="flex items-baseline justify-between border-t border-stone-200 pt-4">
+              <span className="text-xs uppercase tracking-[0.18em] text-stone-500">Framed size</span>
+              <span className="text-sm tabular-nums text-stone-800">{framedReadout}</span>
             </section>
           ) : null}
         </>

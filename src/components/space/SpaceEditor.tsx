@@ -578,6 +578,11 @@ export function SpaceEditor({ roomImageUrl, artworks, initialArtworkId, onReset 
         onBringForward={(id) => reorder(id, 1)}
         onSendBack={(id) => reorder(id, -1)}
         selectedArtwork={selectedArtwork}
+        artworkShortEdgeCm={
+          selectedArtwork?.widthCm && selectedArtwork?.heightCm
+            ? Math.min(selectedArtwork.widthCm, selectedArtwork.heightCm)
+            : undefined
+        }
         frame={selected?.frame ?? 'none'}
         onFrameChange={(frame) => patchSelected({ frame })}
         mat={selected?.mat ?? { width: 0, color: 'white' }}
