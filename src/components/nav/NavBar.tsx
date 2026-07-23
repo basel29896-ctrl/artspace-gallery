@@ -14,6 +14,7 @@ export type NavUser = {
 const LINKS = [
   { href: '/', label: 'Gallery' },
   { href: '/artists', label: 'Artists' },
+  { href: '/studio', label: 'Studio' },
 ];
 
 export function NavBar({ user }: { user: NavUser }) {
