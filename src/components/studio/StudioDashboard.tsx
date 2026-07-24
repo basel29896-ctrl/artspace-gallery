@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { signOut, updateProfile } from '@/lib/demo-store/auth';
+import { updateProfile } from '@/lib/demo-store/auth';
 import { deleteArtwork, listByOwner, fileToDataUrl } from '@/lib/demo-store/artworks';
 import type { DemoArtwork, DemoUser } from '@/lib/demo-store/store';
 import { BASE_PATH } from '@/lib/demo';
@@ -20,23 +20,25 @@ export function StudioDashboard({ user }: { user: DemoUser }) {
     <div className="space-y-14">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Your studio · demo</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Account settings · demo</p>
           <h1 className="mt-2 font-serif text-4xl tracking-tight text-stone-900">{user.name}</h1>
           <p className="mt-1 text-sm capitalize text-stone-500">
             {user.role} · {user.email}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={signOut}
-          className="rounded-sm border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:border-stone-800"
+        <Link
+          href={`${BASE_PATH}/studio/profile`}
+          className="rounded-sm border border-stone-300 px-4 py-2 text-sm text-stone-700 transition hover:border-stone-800"
         >
-          Sign out
-        </button>
+          View my public profile →
+        </Link>
       </header>
 
       <section>
-        <h2 className="mb-5 font-serif text-2xl text-stone-900">Profile</h2>
+        <h2 className="mb-2 font-serif text-2xl text-stone-900">Your information</h2>
+        <p className="mb-5 text-sm text-stone-500">
+          Your name, photo, about, and links — this is what buyers see on your public profile.
+        </p>
         <ProfileEditor user={user} />
       </section>
 

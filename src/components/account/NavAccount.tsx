@@ -7,11 +7,17 @@ import { useDemoSession } from '@/lib/demo-store/useDemoSession';
 import type { DemoUser } from '@/lib/demo-store/store';
 import { ChangePasswordModal } from './ChangePasswordModal';
 
-const HOME_LABEL: Record<DemoUser['role'], string> = {
-  artist: 'My studio',
-  gallery: 'Gallery',
-  visitor: 'My collection',
-};
+/** Menu destinations per role: artists get both the private settings page and
+ *  their public profile; others get their single home. */
+function menuLinks(role: DemoUser['role']): { label: string; href: string }[] {
+  if (role === 'artist')
+    return [
+      { label: 'Account settings', href: '/studio' },
+      { label: 'My profile', href: '/studio/profile' },
+    ];
+  if (role === 'gallery') return [{ label: 'Gallery', href: '/studio' }];
+  return [{ label: 'My collection', href: '/studio' }];
+}
 
 /** Global account control for the demo. Signed out → a Sign in button. Signed in
  *  → an avatar that opens a menu with profile, change password, and sign out. */
@@ -104,14 +110,17 @@ function DesktopAccount({ user }: { user: DemoUser }) {
             </p>
           </div>
           <div className="py-1">
-            <Link
-              href="/studio"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"
-            >
-              {HOME_LABEL[user.role]}
-            </Link>
+            {menuLinks(user.role).map((l) => (
+              <Link
+                key={l.href + l.label}
+                href={l.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2 text-sm text-stone-700 hover:bg-stone-100"
+              >
+                {l.label}
+              </Link>
+            ))}
             <button
               type="button"
               role="menuitem"
@@ -154,9 +163,11 @@ function MobileAccount({ user }: { user: DemoUser }) {
           <p className="truncate text-xs text-stone-500">{user.email}</p>
         </div>
       </div>
-      <Link href="/studio" className="block text-sm text-stone-800">
-        {HOME_LABEL[user.role]}
-      </Link>
+      {menuLinks(user.role).map((l) => (
+        <Link key={l.href + l.label} href={l.href} className="block text-sm text-stone-800">
+          {l.label}
+        </Link>
+      ))}
       <button type="button" onClick={() => setPwOpen(true)} className="block text-left text-sm text-stone-800">
         Change password
       </button>
