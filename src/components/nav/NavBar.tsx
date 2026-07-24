@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { IS_STATIC_DEMO } from '@/lib/demo';
+import { NavAccount } from '@/components/account/NavAccount';
 
 export type NavUser = {
   role: 'artist' | 'visitor';
@@ -14,7 +15,6 @@ export type NavUser = {
 const LINKS = [
   { href: '/', label: 'Gallery' },
   { href: '/artists', label: 'Artists' },
-  { href: '/studio', label: 'Studio' },
 ];
 
 export function NavBar({ user }: { user: NavUser }) {
@@ -87,7 +87,9 @@ export function NavBar({ user }: { user: NavUser }) {
         </div>
 
         <div className="hidden items-center gap-3 sm:flex">
-          {IS_STATIC_DEMO ? null : user ? (
+          {IS_STATIC_DEMO ? (
+            <NavAccount />
+          ) : user ? (
             <>
               {user.role === 'artist' ? (
                 <Link
@@ -149,7 +151,11 @@ export function NavBar({ user }: { user: NavUser }) {
                 </Link>
               </li>
             ))}
-            {IS_STATIC_DEMO ? null : user ? (
+            {IS_STATIC_DEMO ? (
+              <li>
+                <NavAccount mobile />
+              </li>
+            ) : user ? (
               <>
                 {user.role === 'artist' ? (
                   <li>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { signOut, updateProfile } from '@/lib/demo-store/auth';
-import { deleteArtwork, listByOwner } from '@/lib/demo-store/artworks';
+import { deleteArtwork, listByOwner, fileToDataUrl } from '@/lib/demo-store/artworks';
 import type { DemoArtwork, DemoUser } from '@/lib/demo-store/store';
 import { BASE_PATH } from '@/lib/demo';
 import { UploadForm } from './UploadForm';
@@ -96,6 +96,18 @@ export function StudioDashboard({ user }: { user: DemoUser }) {
 function ProfileEditor({ user }: { user: DemoUser }) {
   const [saved, setSaved] = useState(false);
 
+  async function pickAvatar(file: File | null) {
+    if (!file) return;
+    try {
+      const url = await fileToDataUrl(file, 320);
+      updateProfile(user.id, { avatarUrl: url });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      /* ignore unreadable image */
+    }
+  }
+
   function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const d = new FormData(e.currentTarget);
@@ -111,6 +123,33 @@ function ProfileEditor({ user }: { user: DemoUser }) {
 
   return (
     <form onSubmit={save} className="max-w-xl space-y-4">
+      <div className="flex items-center gap-4">
+        <label className="group relative cursor-pointer">
+          {user.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URL avatar
+            <img
+              src={user.avatarUrl}
+              alt=""
+              className="h-16 w-16 rounded-full object-cover ring-1 ring-stone-900/10"
+            />
+          ) : (
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-stone-900 font-serif text-xl text-stone-50">
+              {(user.name || user.email).charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-[11px] text-white opacity-0 transition group-hover:opacity-100">
+            Change
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => pickAvatar(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        <p className="text-xs text-stone-500">Your photo — appears on your profile and the top-right menu.</p>
+      </div>
+
       <Field name="name" label="Display name" defaultValue={user.name} />
       <div>
         <label htmlFor="bio" className="block text-sm text-stone-700">

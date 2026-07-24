@@ -70,6 +70,22 @@ export function currentUser(): DemoUser | null {
   return db.users.find((u) => u.id === db.sessionUserId) ?? null;
 }
 
+export function changePassword(
+  userId: string,
+  current: string,
+  next: string,
+): { ok: true } | { ok: false; error: string } {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return { ok: false, error: 'You are not signed in.' };
+  if (user.pass !== obfuscate(current)) return { ok: false, error: 'Current password is incorrect.' };
+  if (next.length < 6) return { ok: false, error: 'New password must be at least 6 characters.' };
+  const idx = db.users.findIndex((u) => u.id === userId);
+  db.users[idx] = { ...user, pass: obfuscate(next) };
+  writeDb(db);
+  return { ok: true };
+}
+
 export function updateProfile(
   userId: string,
   patch: Partial<Pick<DemoUser, 'name' | 'bio' | 'website' | 'instagram' | 'avatarUrl'>>,
