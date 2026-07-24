@@ -7,6 +7,7 @@ import { LikeButton } from '@/components/artwork/LikeButton';
 import { ContactArtistDialog } from '@/components/artwork/ContactArtistDialog';
 import { ViewTracker } from '@/components/artwork/ViewTracker';
 import { ShareButton } from '@/components/ui/ShareButton';
+import { GatedSpaceLink } from '@/components/auth-gate/GatedSpaceLink';
 
 export const revalidate = 60;
 
@@ -95,7 +96,7 @@ export default async function ArtworkPage({ params }: Params) {
           <div className="mt-8 flex flex-wrap gap-3">
             <LikeButton artworkId={artwork.id} initialCount={artwork.likes_count} />
             <ShareButton title={`${artwork.title} by ${artistName}`} />
-            <Link
+            <GatedSpaceLink
               href={`/space/${artwork.id}`}
               className="rounded-sm border border-stone-300 px-4 py-2 text-sm text-stone-700 transition
                          hover:border-stone-800 hover:text-stone-950
@@ -103,7 +104,7 @@ export default async function ArtworkPage({ params }: Params) {
                          focus-visible:outline-stone-800"
             >
               View in Your Space
-            </Link>
+            </GatedSpaceLink>
           </div>
 
           <div className="mt-4">

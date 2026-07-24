@@ -3,6 +3,7 @@ import { Instrument_Serif, Inter } from 'next/font/google';
 import './globals.css';
 import { SiteHeader } from '@/components/nav/SiteHeader';
 import { SiteFooter } from '@/components/nav/SiteFooter';
+import { AuthGateProvider } from '@/components/auth-gate/AuthGateProvider';
 
 /**
  * Two families, deliberately paired: a high-contrast display serif for titles
@@ -46,9 +47,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <SiteHeader />
-        <div id="content">{children}</div>
-        <SiteFooter />
+        <AuthGateProvider>
+          <SiteHeader />
+          <div id="content">{children}</div>
+          <SiteFooter />
+        </AuthGateProvider>
       </body>
     </html>
   );

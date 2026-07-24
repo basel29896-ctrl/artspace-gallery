@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { IS_STATIC_DEMO } from '@/lib/demo';
+import { useRequireAuth } from '@/components/auth-gate/AuthGateProvider';
 
 type Props = { artworkId: string; initialCount: number };
 
@@ -15,6 +16,7 @@ type Props = { artworkId: string; initialCount: number };
  */
 export function LikeButton({ artworkId, initialCount }: Props) {
   const pathname = usePathname();
+  const requireAuth = useRequireAuth();
   const [supabase] = useState(() => createClient());
   const [liked, setLiked] = useState(false);
   const [count, setCount] = useState(initialCount);
@@ -73,7 +75,20 @@ export function LikeButton({ artworkId, initialCount }: Props) {
     };
   }, [promptSignIn]);
 
+  function toggleLocal() {
+    setLiked((l) => {
+      setCount((c) => c + (l ? -1 : 1));
+      return !l;
+    });
+  }
+
   async function toggle() {
+    if (IS_STATIC_DEMO) {
+      // Demo: gate behind a localStorage account via the shared auth modal,
+      // then apply the like in this browser only.
+      requireAuth(toggleLocal, 'Create a free account to like work you love.');
+      return;
+    }
     if (!userId) {
       // Deliberately does NOT navigate. Yanking someone off the artwork they
       // are reading, with no explanation, reads as the page breaking.
