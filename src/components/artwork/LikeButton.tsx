@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { IS_STATIC_DEMO } from '@/lib/demo';
 import { useRequireAuth } from '@/components/auth-gate/AuthGateProvider';
+import { currentUser } from '@/lib/demo-store/auth';
+import { isLiked as demoIsLiked, toggleLike as demoToggleLike } from '@/lib/demo-store/likes';
 
 type Props = { artworkId: string; initialCount: number };
 
@@ -24,6 +26,18 @@ export function LikeButton({ artworkId, initialCount }: Props) {
   const [pending, setPending] = useState(false);
   const [promptSignIn, setPromptSignIn] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Demo: reflect this browser's saved state for the signed-in user.
+  useEffect(() => {
+    if (!IS_STATIC_DEMO) return;
+    const sync = () => {
+      const u = currentUser();
+      setLiked(u ? demoIsLiked(u.id, artworkId) : false);
+    };
+    sync();
+    window.addEventListener('artspace-demo-change', sync);
+    return () => window.removeEventListener('artspace-demo-change', sync);
+  }, [artworkId]);
 
   useEffect(() => {
     if (IS_STATIC_DEMO) return;
@@ -76,16 +90,17 @@ export function LikeButton({ artworkId, initialCount }: Props) {
   }, [promptSignIn]);
 
   function toggleLocal() {
-    setLiked((l) => {
-      setCount((c) => c + (l ? -1 : 1));
-      return !l;
-    });
+    const u = currentUser();
+    if (!u) return;
+    const nowLiked = demoToggleLike(u.id, artworkId);
+    setLiked(nowLiked);
+    setCount((c) => c + (nowLiked ? 1 : -1));
   }
 
   async function toggle() {
     if (IS_STATIC_DEMO) {
       // Demo: gate behind a localStorage account via the shared auth modal,
-      // then apply the like in this browser only.
+      // then persist the like for this user in this browser.
       requireAuth(toggleLocal, 'Create a free account to like work you love.');
       return;
     }

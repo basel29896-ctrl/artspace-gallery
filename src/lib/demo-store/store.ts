@@ -46,10 +46,13 @@ export type DemoArtwork = {
   createdAt: number;
 };
 
+export type DemoLike = { userId: string; artworkId: string };
+
 type DemoDb = {
   version: number;
   users: DemoUser[];
   artworks: DemoArtwork[];
+  likes: DemoLike[];
   sessionUserId: string | null;
 };
 
@@ -57,7 +60,7 @@ const KEY = 'artspace_demo_db_v1';
 const DB_VERSION = 1;
 
 function empty(): DemoDb {
-  return { version: DB_VERSION, users: [], artworks: [], sessionUserId: null };
+  return { version: DB_VERSION, users: [], artworks: [], likes: [], sessionUserId: null };
 }
 
 export function readDb(): DemoDb {
@@ -67,6 +70,8 @@ export function readDb(): DemoDb {
     if (!raw) return empty();
     const parsed = JSON.parse(raw) as DemoDb;
     if (parsed.version !== DB_VERSION) return empty();
+    // Tolerate stores written before `likes` existed.
+    if (!Array.isArray(parsed.likes)) parsed.likes = [];
     return parsed;
   } catch {
     return empty();

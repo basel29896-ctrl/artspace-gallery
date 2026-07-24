@@ -3,15 +3,24 @@
 import { useDemoSession } from '@/lib/demo-store/useDemoSession';
 import { AuthPanel } from './AuthPanel';
 import { StudioDashboard } from './StudioDashboard';
+import { CollectorView } from './CollectorView';
+import { GalleryView } from './GalleryView';
 
-/** Auth gate for the demo studio: shows sign up / sign in until there is a
- *  local session, then the dashboard. `ready` avoids a hydration flash. */
+/**
+ * Auth gate + role router for the demo. Signed out → sign up / sign in. Signed
+ * in, the view depends on the role chosen at sign-up:
+ *   artist  → studio dashboard (upload, profile, prices)
+ *   gallery → book-a-call (white-label onboarding is personal, not self-serve)
+ *   visitor → collector home (saved works)
+ * `ready` avoids a hydration flash.
+ */
 export function StudioApp() {
   const { user, ready } = useDemoSession();
 
-  if (!ready) {
-    return <div className="h-40" aria-hidden />;
-  }
+  if (!ready) return <div className="h-40" aria-hidden />;
+  if (!user) return <AuthPanel />;
 
-  return user ? <StudioDashboard user={user} /> : <AuthPanel />;
+  if (user.role === 'artist') return <StudioDashboard user={user} />;
+  if (user.role === 'gallery') return <GalleryView user={user} />;
+  return <CollectorView user={user} />;
 }
